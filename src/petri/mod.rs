@@ -1,5 +1,6 @@
 mod parser;
 
+use bitvec::prelude::BitVec;
 pub use parser::from_xml;
 use std::{collections::HashMap, fmt};
 
@@ -95,30 +96,15 @@ impl PetriNet {
 
     pub fn initial_marking(&self) -> Marking {
         Marking {
-            markings: self.places.iter().map(|p| p.initial_marking).collect(),
+            markings: self.places.iter().map(|p| p.initial_marking > 0).collect(),
         }
     }
 }
 
 /// Maps stores the number of tokens for each place in a net
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Marking {
-    markings: Vec<usize>,
-}
-
-impl PartialEq for Marking {
-    fn eq(&self, other: &Self) -> bool {
-        if self.markings.len() != other.markings.len() {
-            return false;
-        }
-
-        self.markings
-            .iter()
-            .zip(other.markings.iter())
-            .filter(|&(a, b)| a == b)
-            .count()
-            == self.markings.len()
-    }
+    markings: BitVec,
 }
 
 impl fmt::Display for Marking {
@@ -139,17 +125,17 @@ impl Marking {
         let active_transitions = net.transitions.iter().filter(|t| {
             t.inputs
                 .iter()
-                .fold(true, |acc, i| if acc { self.markings[*i] > 0 } else { acc })
+                .fold(true, |acc, i| if acc { self.markings[*i] } else { acc })
         });
 
         Ok(active_transitions
             .map(|t| {
                 let mut marking = self.clone();
                 for &i in &t.inputs {
-                    marking.markings[i] -= 1;
+                    marking.markings.set(i, false);
                 }
                 for &i in &t.outputs {
-                    marking.markings[i] += 1;
+                    marking.markings.set(i, true);
                 }
                 marking
             })
@@ -164,7 +150,7 @@ impl Marking {
         self.markings
             .iter()
             .enumerate()
-            .filter(|(_, &m)| m > 0)
+            .filter(|(_, m)| **m)
             .map(|(i, _)| net.places[i].id.clone())
             .collect::<Vec<String>>()
             .join(", ")

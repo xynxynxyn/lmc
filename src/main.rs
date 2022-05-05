@@ -1,6 +1,6 @@
 use std::{
     env, fs,
-    time::{Duration, SystemTime},
+    time::{Duration, SystemTime}, collections::{HashSet, VecDeque},
 };
 mod error;
 mod petri;
@@ -14,33 +14,32 @@ fn main() -> error::Result<()> {
     let file_content = fs::read_to_string(file_path)?;
     let net = petri::from_xml(&file_content)?;
 
-    // Find all possible markings
-    let mut visited = Vec::new();
-    let mut queue = Vec::new();
-    queue.push(net.initial_marking());
-
-    let mut timestamp = SystemTime::now();
     let start = SystemTime::now();
-    while let Some(marking) = queue.pop() {
-        visited.push(marking.clone());
-        if let Ok(duration) = timestamp.elapsed() {
-            if duration >= Duration::from_secs(5) {
-                if let Ok(elapsed) = start.elapsed() {
-                    println!("{:6}: {:10} markings", elapsed.as_secs(), visited.len());
-                }
-                timestamp = SystemTime::now();
-            }
-        }
 
+    // Find all possible markings
+    let mut visited = HashSet::new();
+    let mut queue = VecDeque::new();
+    queue.push_back(net.initial_marking());
+    visited.insert(net.initial_marking());
+
+    while let Some(marking) = queue.pop_front() {
         let next_markings = marking.next(&net)?;
         for m in next_markings {
-            if !visited.contains(&m) && !queue.contains(&m) {
-                queue.push(m);
+            if !visited.contains(&m) {
+                visited.insert(m.clone());
+                queue.push_back(m);
             }
         }
     }
 
-    println!("Took {}s", start.elapsed().unwrap().as_secs());
+    let elapsed = start.elapsed().unwrap();
+    if elapsed <= Duration::from_millis(1) {
+        println!("Took {}μs", elapsed.as_micros());
+    } else if elapsed <= Duration::from_secs(1) {
+        println!("Took {}ms", elapsed.as_millis());
+    } else {
+        println!("Took {}s", elapsed.as_secs_f64());
+    }
 
     let deadlock = visited.iter().filter(|m| m.deadlock(&net).unwrap());
     println!(
