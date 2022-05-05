@@ -7,7 +7,7 @@ fn main() -> error::Result<()> {
     let file_path = args
         .get(1)
         .map(|s| s.as_str())
-        .unwrap_or("inputs/philoslides.pnml");
+        .unwrap_or("inputs/philosophers/Philosophers-5.pnml");
     let file_content = fs::read_to_string(file_path)?;
     let net = petri::from_xml(&file_content)?;
 
