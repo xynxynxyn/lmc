@@ -6,10 +6,6 @@ pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("unknown transition with label '{0}'")]
-    UnknownTransition(String),
-    #[error("unknown place with label '{0}'")]
-    UnknownPlace(String),
     #[error("duplicate place with label '{0}'")]
     DuplicatePlace(String),
     #[error("duplicate transition with label '{0}'")]
