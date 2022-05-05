@@ -1,4 +1,7 @@
-use std::{env, fs};
+use std::{
+    env, fs,
+    time::{Duration, SystemTime},
+};
 mod error;
 mod petri;
 
@@ -16,8 +19,19 @@ fn main() -> error::Result<()> {
     let mut queue = Vec::new();
     queue.push(net.initial_marking());
 
+    let mut timestamp = SystemTime::now();
+    let start = SystemTime::now();
     while let Some(marking) = queue.pop() {
         visited.push(marking.clone());
+        if let Ok(duration) = timestamp.elapsed() {
+            if duration >= Duration::from_secs(5) {
+                if let Ok(elapsed) = start.elapsed() {
+                    println!("{:6}: {:10} markings", elapsed.as_secs(), visited.len());
+                }
+                timestamp = SystemTime::now();
+            }
+        }
+
         let next_markings = marking.next(&net)?;
         for m in next_markings {
             if !visited.contains(&m) && !queue.contains(&m) {
@@ -26,34 +40,14 @@ fn main() -> error::Result<()> {
         }
     }
 
-    let deadlock: Vec<_> = visited
-        .iter()
-        .filter(|m| m.deadlock(&net).unwrap())
-        .collect();
+    println!("Took {}s", start.elapsed().unwrap().as_secs());
+
+    let deadlock = visited.iter().filter(|m| m.deadlock(&net).unwrap());
     println!(
-        "{} reachable {}",
+        "{} reachable markings, {} deadlock markings",
         visited.len(),
-        if visited.len() < 2 {
-            "marking"
-        } else {
-            "markings"
-        }
+        deadlock.count()
     );
-    for (i, m) in visited.iter().enumerate() {
-        println!("\t[{:2}] ({})", i, m.fmt(&net));
-    }
-    println!(
-        "{} deadlock {}",
-        deadlock.len(),
-        if deadlock.len() < 2 {
-            "marking"
-        } else {
-            "markings"
-        }
-    );
-    for (i, m) in deadlock.iter().enumerate() {
-        println!("\t[{:2}] ({})", i, m.fmt(&net));
-    }
 
     Ok(())
 }
