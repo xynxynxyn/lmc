@@ -98,6 +98,14 @@ impl PetriNet {
             markings: self.places.iter().map(|p| p.initial_marking).collect(),
         }
     }
+
+    pub fn next_markings(&self, marking: &Marking) -> Result<Vec<Marking>> {
+        marking.next(self)
+    }
+
+    pub fn deadlock(&self, marking: &Marking) -> Result<bool> {
+        marking.deadlock(self)
+    }
 }
 
 /// Maps stores the number of tokens for each place in a net
@@ -131,7 +139,7 @@ impl Marking {
     /// Calculate the next marking
     /// Will panic if indices do not match ( but this shouldn't happen as long as the underlying
     /// petri net never gets mutated )
-    pub fn next(&self, net: &PetriNet) -> Result<Vec<Marking>> {
+    fn next(&self, net: &PetriNet) -> Result<Vec<Marking>> {
         if self.markings.len() != net.places.len() {
             return Err(Error::InvalidIndex);
         }
@@ -156,17 +164,7 @@ impl Marking {
             .collect())
     }
 
-    pub fn deadlock(&self, net: &PetriNet) -> Result<bool> {
+    fn deadlock(&self, net: &PetriNet) -> Result<bool> {
         self.next(net).map(|m| m.is_empty())
-    }
-
-    pub fn fmt(&self, net: &PetriNet) -> String {
-        self.markings
-            .iter()
-            .enumerate()
-            .filter(|(_, &m)| m > 0)
-            .map(|(i, _)| net.places[i].id.clone())
-            .collect::<Vec<String>>()
-            .join(", ")
     }
 }

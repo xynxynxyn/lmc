@@ -32,7 +32,7 @@ fn main() -> error::Result<()> {
             }
         }
 
-        let next_markings = marking.next(&net)?;
+        let next_markings = net.next_markings(&marking)?;
         for m in next_markings {
             if !visited.contains(&m) && !queue.contains(&m) {
                 queue.push(m);
@@ -42,7 +42,7 @@ fn main() -> error::Result<()> {
 
     println!("Took {}s", start.elapsed().unwrap().as_secs());
 
-    let deadlock = visited.iter().filter(|m| m.deadlock(&net).unwrap());
+    let deadlock = visited.iter().filter(|m| net.deadlock(&m).unwrap());
     println!(
         "{} reachable markings, {} deadlock markings",
         visited.len(),
