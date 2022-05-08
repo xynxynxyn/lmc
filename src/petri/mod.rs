@@ -2,13 +2,11 @@ mod parser;
 
 use bitvec::prelude::BitVec;
 pub use parser::from_xml;
-use std::{collections::HashMap, fmt};
+use std::collections::HashMap;
 
 use crate::error::{Error, Result};
 
-#[derive(Debug)]
 struct Place {
-    id: String,
     initial_marking: usize,
 }
 
@@ -18,7 +16,6 @@ struct Transition {
     outputs: Vec<usize>,
 }
 
-#[derive(Debug)]
 pub struct PetriNet {
     places: Vec<Place>,
     transitions: Vec<Transition>,
@@ -41,10 +38,7 @@ impl PetriNet {
             Err(Error::DuplicatePlace(place))
         } else {
             let index = self.places.len();
-            self.places.push(Place {
-                id: place.clone(),
-                initial_marking,
-            });
+            self.places.push(Place { initial_marking });
             self.place_labels.insert(place, index);
             Ok(())
         }
@@ -107,22 +101,12 @@ impl PetriNet {
     pub fn deadlock(&self, marking: &Marking) -> Result<bool> {
         marking.deadlock(self)
     }
-
-    pub fn fmt_marking(&self, marking: &Marking) -> Result<String> {
-        marking.fmt(self)
-    }
 }
 
 /// Maps stores the number of tokens for each place in a net
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Marking {
     markings: BitVec,
-}
-
-impl fmt::Display for Marking {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.markings)
-    }
 }
 
 impl Marking {
@@ -156,19 +140,5 @@ impl Marking {
 
     fn deadlock(&self, net: &PetriNet) -> Result<bool> {
         self.next(net).map(|m| m.is_empty())
-    }
-
-    fn fmt(&self, net: &PetriNet) -> Result<String> {
-        if self.markings.len() != net.places.len() {
-            return Err(Error::InvalidIndex);
-        }
-        Ok(self
-            .markings
-            .iter()
-            .enumerate()
-            .filter(|(_, m)| **m)
-            .map(|(i, _)| net.places[i].id.clone())
-            .collect::<Vec<String>>()
-            .join(", "))
     }
 }
