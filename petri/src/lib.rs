@@ -1,10 +1,10 @@
 mod parser;
+mod error;
 
 use bitvec::prelude::BitVec;
-pub use parser::from_xml;
 use std::collections::HashMap;
-
-use crate::error::{Error, Result};
+pub use error::{Error, Result};
+pub use parser::from_xml;
 
 struct Place {
     initial_marking: usize,

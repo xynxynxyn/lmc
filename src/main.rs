@@ -1,7 +1,5 @@
-mod error;
-mod petri;
 use clap::{Parser, Subcommand};
-use error::Result;
+use anyhow::Result;
 use std::ffi::OsString;
 use std::{
     collections::{HashSet, VecDeque},
@@ -28,7 +26,7 @@ enum Commands {
     },
 }
 
-fn main() -> error::Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
