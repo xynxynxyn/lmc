@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 // A buchi automaton consists of 5 elements:
 // - Q: set of states
 // - E: an alphabet
@@ -14,14 +17,20 @@ pub struct Buchi {
     initial_states: HashSet<State>,
 }
 
-#[derive(Eq, Clone, Hash, PartialEq)]
+#[derive(Debug, Eq, Clone, Hash, PartialEq)]
 pub struct Word {
     id: String,
 }
 
-#[derive(Eq, Clone, Hash, PartialEq)]
+#[derive(Debug, Eq, Clone, Hash, PartialEq)]
 pub struct State {
     id: String,
+}
+
+#[derive(Debug)]
+pub struct Trace {
+    words: Vec<Word>,
+    w_words: Vec<Word>,
 }
 
 impl Buchi {
@@ -95,18 +104,18 @@ impl Buchi {
 
         for state in &self.states() {
             if !colors.contains_key(state) {
-                if let Some(component) = self.tarjans_strongconnect(
+                let mut found_components = self.tarjans_strongconnect(
                     state,
                     self.get_successors(state),
                     &mut stack,
                     &mut colors,
                     &mut index,
-                ) {
-                    components.push(component);
-                }
+                );
+                components.append(&mut found_components);
             }
         }
 
+        println!("Final set of components: {:?}", components);
         components
     }
 
@@ -117,20 +126,23 @@ impl Buchi {
         stack: &mut Vec<&'a State>,
         colors: &mut HashMap<State, (i32, i32)>,
         index: &mut i32,
-    ) -> Option<HashSet<State>> {
+    ) -> Vec<HashSet<State>> {
+        let mut components = vec![];
         colors.insert(state.clone(), (*index, *index));
         *index += 1;
         stack.push(state);
 
         for successor in successors {
             if !colors.contains_key(successor) {
-                self.tarjans_strongconnect(
+                // Collect the components found
+                let mut found_components = self.tarjans_strongconnect(
                     successor,
                     self.get_successors(successor),
                     stack,
                     colors,
                     index,
                 );
+                components.append(&mut found_components);
 
                 let state_cols = *colors.get(state).unwrap();
                 let successor_cols = *colors.get(successor).unwrap();
@@ -153,11 +165,14 @@ impl Buchi {
             let mut component = HashSet::new();
             while let Some(w) = stack.pop() {
                 component.insert(w.clone());
+                if w == state {
+                    break;
+                }
             }
-            Some(component)
-        } else {
-            None
+            println!("Constructed component {:?}", component);
+            components.push(component);
         }
+        components
     }
 
     fn get_successors(&self, state: &State) -> HashSet<&State> {
@@ -165,6 +180,62 @@ impl Buchi {
             Some(s) => s.values().flatten().collect(),
             None => HashSet::new(),
         }
+    }
+
+    /// Verify that there exists no trace which satisfies the automaton
+    /// If there exists a counter example give one back
+    pub fn verify(&self) -> Result<(), Trace> {
+        // Gather all the final states which are contained in a non trivial SCC
+        let sccs: Vec<_> = self.tarjans().into_iter().filter(|c| c.len() > 1).collect();
+        let accepting: HashSet<_> = self
+            .accepting_states
+            .iter()
+            .filter(|&s| {
+                for c in &sccs {
+                    if c.contains(s) {
+                        return true;
+                    }
+                }
+                return false;
+            })
+            .collect();
+
+        // If we can reach any of these accepting states we have found a counter example
+        let mut visited = HashMap::new();
+
+        for initial_state in &self.initial_states {
+            // Do DFS for every initial_state in the list
+            // Except when we already visited it
+            if visited.contains_key(initial_state) {
+                continue;
+            }
+
+            let mut queue = vec![];
+            visited.insert(initial_state.clone(), Trace::new(vec![]));
+            queue.push(initial_state);
+
+            while let Some(state) = queue.pop() {
+                if accepting.contains(state) {
+                    // Found a counter example, return the trace for now (no omega yet)
+                    return Err(visited.remove(state).unwrap());
+                }
+
+                for transition in self.states.get(state) {
+                    for (word, successors) in transition {
+                        for successor in successors {
+                            if !visited.contains_key(successor) {
+                                // Create a new trace for the newly discovered state by copying the previous one
+                                let mut new_trace = visited.get(state).unwrap().words.clone();
+                                new_trace.push(word.clone());
+                                visited.insert(successor.clone(), Trace::new(new_trace));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -177,5 +248,29 @@ impl Word {
 impl State {
     pub fn new(id: String) -> Self {
         State { id }
+    }
+}
+
+impl Trace {
+    pub fn new(words: Vec<Word>) -> Self {
+        Trace {
+            words,
+            w_words: vec![],
+        }
+    }
+}
+
+impl Display for Trace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "({})",
+            self.words
+                .iter()
+                .map(|w| w.id.as_str())
+                .collect::<Vec<&str>>()
+                .join(",")
+        )?;
+        Ok(())
     }
 }

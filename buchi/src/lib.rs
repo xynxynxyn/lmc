@@ -69,6 +69,25 @@ mod test {
         nba.add_transition(&s8, &s8, &w);
 
         let components = nba.tarjans();
-        assert!(components.len() == 4);
+        assert!(components.len() == 4, "{:?}", components);
+    }
+
+    #[test]
+    pub fn verify_simple_counter() {
+        let mut nba = Buchi::new();
+        let s1 = State::new("s1".into());
+        let s2 = State::new("s2".into());
+        let a = Word::new("a".into());
+        let b = Word::new("b".into());
+
+        nba.add_transition(&s1, &s2, &a);
+        nba.add_transition(&s2, &s1, &b);
+
+        nba.initial_state(&s1);
+        nba.accepting_states(&s2);
+
+        let result = nba.verify();
+        assert!(result.is_err(), "{:?}", result);
+        assert!(format!("{}", result.unwrap_err()) == String::from("(a,b)"))
     }
 }
