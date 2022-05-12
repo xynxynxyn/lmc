@@ -88,6 +88,11 @@ mod test {
 
         let result = nba.verify();
         assert!(result.is_err(), "{:?}", result);
-        assert!(format!("{}", result.unwrap_err()) == String::from("(a,b)"))
+        let trace = result.unwrap_err();
+        assert!(
+            format!("{}", trace) == String::from("(a)(b,a)ω"),
+            "{}",
+            trace
+        )
     }
 }

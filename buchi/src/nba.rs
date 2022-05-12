@@ -30,7 +30,7 @@ pub struct State {
 #[derive(Debug)]
 pub struct Trace {
     words: Vec<Word>,
-    w_words: Vec<Word>,
+    omega_words: Vec<Word>,
 }
 
 impl Buchi {
@@ -115,7 +115,6 @@ impl Buchi {
             }
         }
 
-        println!("Final set of components: {:?}", components);
         components
     }
 
@@ -169,7 +168,6 @@ impl Buchi {
                     break;
                 }
             }
-            println!("Constructed component {:?}", component);
             components.push(component);
         }
         components
@@ -200,6 +198,8 @@ impl Buchi {
             })
             .collect();
 
+        println!("Accepting states: {:?}", accepting);
+
         // If we can reach any of these accepting states we have found a counter example
         let mut visited = HashMap::new();
 
@@ -211,13 +211,21 @@ impl Buchi {
             }
 
             let mut queue = vec![];
-            visited.insert(initial_state.clone(), Trace::new(vec![]));
+            visited.insert(initial_state, vec![]);
             queue.push(initial_state);
 
             while let Some(state) = queue.pop() {
                 if accepting.contains(state) {
-                    // Found a counter example, return the trace for now (no omega yet)
-                    return Err(visited.remove(state).unwrap());
+                    // Found a counter example, return the trace and calculate an omega trace
+                    let scc = sccs
+                        .iter()
+                        .filter(|c| c.contains(state))
+                        .collect::<Vec<_>>()[0];
+
+                    let trace = visited.remove(state).unwrap();
+                    let omega_trace = self.constrained_cycle_searcher(state, scc).unwrap();
+
+                    return Err(Trace::new(trace, omega_trace));
                 }
 
                 for transition in self.states.get(state) {
@@ -225,9 +233,10 @@ impl Buchi {
                         for successor in successors {
                             if !visited.contains_key(successor) {
                                 // Create a new trace for the newly discovered state by copying the previous one
-                                let mut new_trace = visited.get(state).unwrap().words.clone();
+                                let mut new_trace = visited.get(state).unwrap().clone();
                                 new_trace.push(word.clone());
-                                visited.insert(successor.clone(), Trace::new(new_trace));
+                                visited.insert(successor, new_trace);
+                                queue.push(successor);
                             }
                         }
                     }
@@ -236,6 +245,39 @@ impl Buchi {
         }
 
         Ok(())
+    }
+
+    fn constrained_cycle_searcher(
+        &self,
+        initial_state: &State,
+        states: &HashSet<State>,
+    ) -> Option<Vec<Word>> {
+        let mut queue = vec![];
+        let mut visited = HashMap::new();
+        visited.insert(initial_state, vec![]);
+        queue.push(initial_state);
+
+        while let Some(state) = queue.pop() {
+            for transition in self.states.get(state) {
+                for (word, successors) in transition {
+                    for successor in successors.iter().filter(|s| states.contains(s)) {
+                        if successor == initial_state {
+                            // Found the initial state again, return the trace
+                            let mut trace = visited.remove(state).unwrap();
+                            trace.push(word.clone());
+                            return Some(trace);
+                        }
+
+                        let mut new_trace = visited.get(state).unwrap().clone();
+                        new_trace.push(word.clone());
+                        visited.insert(successor, new_trace);
+                        queue.push(successor);
+                    }
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -252,11 +294,8 @@ impl State {
 }
 
 impl Trace {
-    pub fn new(words: Vec<Word>) -> Self {
-        Trace {
-            words,
-            w_words: vec![],
-        }
+    pub fn new(words: Vec<Word>, omega_words: Vec<Word>) -> Self {
+        Trace { words, omega_words }
     }
 }
 
@@ -264,8 +303,13 @@ impl Display for Trace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "({})",
+            "({})({})ω",
             self.words
+                .iter()
+                .map(|w| w.id.as_str())
+                .collect::<Vec<&str>>()
+                .join(","),
+            self.omega_words
                 .iter()
                 .map(|w| w.id.as_str())
                 .collect::<Vec<&str>>()
