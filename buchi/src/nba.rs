@@ -19,18 +19,18 @@ pub struct Buchi {
 
 #[derive(Debug, Eq, Clone, Hash, PartialEq)]
 pub struct Word {
-    id: String,
+    pub id: String,
 }
 
 #[derive(Debug, Eq, Clone, Hash, PartialEq)]
 pub struct State {
-    id: String,
+    pub id: String,
 }
 
 #[derive(Debug)]
 pub struct Trace {
-    words: Vec<Word>,
-    omega_words: Vec<Word>,
+    pub words: Vec<Word>,
+    pub omega_words: Vec<Word>,
 }
 
 impl Buchi {
@@ -57,7 +57,7 @@ impl Buchi {
     }
 
     /// Adds the state if it doesn't already exist
-    pub fn accepting_states(&mut self, state: &State) {
+    pub fn accepting_state(&mut self, state: &State) {
         let state = state.clone();
         self.accepting_states.insert(state.clone());
         if !self.states.contains_key(&state) {
@@ -197,8 +197,6 @@ impl Buchi {
                 return false;
             })
             .collect();
-
-        println!("Accepting states: {:?}", accepting);
 
         // If we can reach any of these accepting states we have found a counter example
         let mut visited = HashMap::new();

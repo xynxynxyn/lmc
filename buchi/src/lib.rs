@@ -43,33 +43,75 @@ mod test {
     #[test]
     pub fn tarjan() {
         let mut nba = Buchi::new();
-        let s1 = State::new("s1".into());
-        let s2 = State::new("s2".into());
-        let s3 = State::new("s3".into());
-        let s4 = State::new("s4".into());
-        let s5 = State::new("s5".into());
-        let s6 = State::new("s6".into());
-        let s7 = State::new("s7".into());
-        let s8 = State::new("s8".into());
-        let w = Word::new("w".into());
+        let a = State::new("a".into());
+        let b = State::new("b".into());
+        let e = State::new("e".into());
+        let c = State::new("c".into());
+        let d = State::new("d".into());
+        let f = State::new("f".into());
+        let g = State::new("g".into());
+        let h = State::new("h".into());
+        let x = Word::new("x".into());
+        let y = Word::new("y".into());
+        let z = Word::new("z".into());
 
-        nba.add_transition(&s1, &s2, &w);
-        nba.add_transition(&s2, &s3, &w);
-        nba.add_transition(&s3, &s1, &w);
-        nba.add_transition(&s4, &s2, &w);
-        nba.add_transition(&s4, &s3, &w);
-        nba.add_transition(&s5, &s4, &w);
-        nba.add_transition(&s4, &s5, &w);
-        nba.add_transition(&s6, &s3, &w);
-        nba.add_transition(&s5, &s6, &w);
-        nba.add_transition(&s6, &s7, &w);
-        nba.add_transition(&s7, &s6, &w);
-        nba.add_transition(&s8, &s7, &w);
-        nba.add_transition(&s8, &s6, &w);
-        nba.add_transition(&s8, &s8, &w);
+        nba.add_transition(&a, &b, &x);
+        nba.add_transition(&b, &e, &x);
+        nba.add_transition(&e, &a, &x);
+        nba.add_transition(&b, &f, &x);
+        nba.add_transition(&b, &c, &x);
+        nba.add_transition(&e, &f, &x);
+        nba.add_transition(&c, &d, &x);
+        nba.add_transition(&d, &c, &x);
+        nba.add_transition(&d, &h, &x);
+        nba.add_transition(&h, &d, &x);
+        nba.add_transition(&c, &g, &y);
+        nba.add_transition(&h, &g, &z);
+        nba.add_transition(&g, &f, &x);
+        nba.add_transition(&f, &g, &x);
 
         let components = nba.tarjans();
-        assert!(components.len() == 4, "{:?}", components);
+        assert!(components.len() == 3, "{:?}", components);
+    }
+
+    #[test]
+    pub fn verify_complex() {
+        let mut nba = Buchi::new();
+        let a = State::new("a".into());
+        let b = State::new("b".into());
+        let e = State::new("e".into());
+        let c = State::new("c".into());
+        let d = State::new("d".into());
+        let f = State::new("f".into());
+        let g = State::new("g".into());
+        let h = State::new("h".into());
+        let x = Word::new("x".into());
+        let y = Word::new("y".into());
+        let z = Word::new("z".into());
+
+        nba.add_transition(&a, &b, &x);
+        nba.add_transition(&b, &e, &x);
+        nba.add_transition(&e, &a, &x);
+        nba.add_transition(&b, &f, &x);
+        nba.add_transition(&b, &c, &x);
+        nba.add_transition(&e, &f, &x);
+        nba.add_transition(&c, &d, &x);
+        nba.add_transition(&d, &c, &x);
+        nba.add_transition(&d, &h, &x);
+        nba.add_transition(&h, &d, &x);
+        nba.add_transition(&c, &g, &x);
+        nba.add_transition(&h, &g, &x);
+        nba.add_transition(&g, &f, &y);
+        nba.add_transition(&f, &g, &z);
+
+        nba.initial_state(&a);
+        nba.accepting_state(&f);
+
+        let trace = nba.verify();
+        assert!(trace.is_err(), "{:?}", trace);
+        let trace = trace.unwrap_err();
+        assert!(trace.omega_words.contains(&y), "{}", trace);
+        assert!(trace.omega_words.contains(&z), "{}", trace)
     }
 
     #[test]
@@ -84,7 +126,7 @@ mod test {
         nba.add_transition(&s2, &s1, &b);
 
         nba.initial_state(&s1);
-        nba.accepting_states(&s2);
+        nba.accepting_state(&s2);
 
         let result = nba.verify();
         assert!(result.is_err(), "{:?}", result);
@@ -94,5 +136,22 @@ mod test {
             "{}",
             trace
         )
+    }
+
+    #[test]
+    pub fn verify_empty() {
+        let mut nba = Buchi::new();
+        let s1 = State::new("s1".into());
+        let s2 = State::new("s2".into());
+        let a = Word::new("a".into());
+        let b = Word::new("b".into());
+
+        nba.add_transition(&s1, &s2, &a);
+        nba.add_transition(&s2, &s1, &b);
+
+        nba.initial_state(&s1);
+
+        let result = nba.verify();
+        assert!(result.is_ok(), "{:?}", result);
     }
 }
