@@ -9,13 +9,17 @@ use std::{
 // - Q_0: set of initial states
 // - F: set of acceptance states
 
+/// A non-deterministic buchi automata (nba)
+/// States are constructed with the automata and must only be used with the automata it is generated from.
+/// If States are constructed in another way and used with an automata this can cause panics or incorrect behavior.
 #[derive(Clone, Debug)]
 pub struct Buchi {
-    /// A State and it's transitions
-    /// These transitions take a word as input and return a set of new states
+    // A State and it's transitions
+    // These transitions take a word as input and return a set of new states
     states: HashMap<State, HashMap<Word, HashSet<State>>>,
     accepting_states: HashSet<State>,
     initial_states: HashSet<State>,
+    size: usize,
 }
 
 #[derive(Debug, Eq, Clone, Hash, PartialEq)]
@@ -23,9 +27,9 @@ pub struct Word {
     pub id: String,
 }
 
-#[derive(Debug, Eq, Clone, Hash, PartialEq)]
+#[derive(Debug, Eq, Clone, Copy, Hash, PartialEq)]
 pub struct State {
-    pub id: String,
+    id: usize,
 }
 
 #[derive(Debug)]
@@ -35,50 +39,52 @@ pub struct Trace {
 }
 
 impl Buchi {
+    /// Create a new empty Buchi Automata
     pub fn new() -> Self {
         Buchi {
             states: HashMap::new(),
             accepting_states: HashSet::new(),
             initial_states: HashSet::new(),
+            size: 0,
         }
     }
 
-    fn add_state(&mut self, state: &State) {
-        let state = state.clone();
-        self.states.insert(state.clone(), HashMap::new());
+    /// Generate a new state. The return value is used to construct transitions and set the initial/accepting states
+    pub fn new_state(&mut self) -> State {
+        let id = self.size;
+        let state = State { id };
+        self.size += 1;
+        self.states.insert(state, HashMap::new());
+        state
     }
 
-    /// Adds the state if it doesn't already exist
-    pub fn set_initial_state(&mut self, state: &State) {
-        let state = state.clone();
-        self.initial_states.insert(state.clone());
-        if !self.states.contains_key(&state) {
-            self.add_state(&state);
-        }
+    /// Make the provided state an initial state
+    pub fn set_initial_state(&mut self, state: State) {
+        self.initial_states.insert(state);
     }
 
-    /// Adds the state if it doesn't already exist
-    pub fn set_accepting_state(&mut self, state: &State) {
-        let state = state.clone();
-        self.accepting_states.insert(state.clone());
-        if !self.states.contains_key(&state) {
-            self.add_state(&state);
-        }
+    /// Make the provided states initial states
+    pub fn set_initial_states(&mut self, states: &[State]) {
+        self.initial_states.extend(states);
+    }
+
+    /// Make the provided state an accepting state
+    pub fn set_accepting_state(&mut self, state: State) {
+        self.accepting_states.insert(state);
+    }
+
+    /// Make the provided states accepting states
+    pub fn set_accepting_states(&mut self, states: &[State]) {
+        self.accepting_states.extend(states);
     }
 
     /// Add a transition from Source to Target with label Word.
-    /// If the Source is not present it will be created.
-    /// If the Target is not present it will be created.
-    pub fn add_transition(&mut self, source: &State, target: &State, word: &Word) {
+    /// The Word can be any kind of string or a manually constructed Word, which should then probably be cloned
+    /// since Word does not implement Copy.
+    pub fn add_transition<T: Into<Word>>(&mut self, source: State, target: State, word: T) {
         // idc about the borrow checker
-        let source = source.clone();
-        let target = target.clone();
-        let word = word.clone();
+        let word = word.into();
 
-        // Add the target to the states if it doesn't already exist
-        if !self.states.contains_key(&target) {
-            self.states.insert(target.clone(), HashMap::new());
-        }
         // Insert the necessary transition information
         self.states
             .entry(source)
@@ -88,20 +94,23 @@ impl Buchi {
             .insert(target);
     }
 
-    pub fn transitions(&self, state: &State) -> Option<&HashMap<Word, HashSet<State>>> {
-        self.states.get(state)
+    /// Get the transitions that exit the state
+    pub fn transitions(&self, state: State) -> Option<&HashMap<Word, HashSet<State>>> {
+        self.states.get(&state)
     }
 
+    /// Get a set of all states that exist in the automaton. It does not matter whether they're reachable or not.
     pub fn states(&self) -> HashSet<State> {
         self.states.keys().map(|s| s.clone()).collect()
     }
 
-    pub fn accepting_states(&self) -> HashSet<State> {
-        self.accepting_states.clone()
+    /// A set of accepting states
+    pub fn accepting_states(&self) -> &HashSet<State> {
+        &self.accepting_states
     }
 
-    /// Return a set of strongly connected components using Tarjan's algorithm
-    pub fn tarjans(&self) -> Vec<HashSet<State>> {
+    /// Returns a set of strongly connected components using Tarjan's algorithm
+    pub fn tarjans_scc(&self) -> Vec<HashSet<State>> {
         let mut index = 0;
         let mut stack = Vec::new();
         let mut colors = HashMap::new();
@@ -189,7 +198,11 @@ impl Buchi {
     /// If there exists a counter example give one back
     pub fn verify(&self) -> Result<(), Trace> {
         // Gather all the final states which are contained in a non trivial SCC
-        let sccs: Vec<_> = self.tarjans().into_iter().filter(|c| c.len() > 1).collect();
+        let sccs: Vec<_> = self
+            .tarjans_scc()
+            .into_iter()
+            .filter(|c| c.len() > 1)
+            .collect();
         let accepting: HashSet<_> = self
             .accepting_states
             .iter()
@@ -301,12 +314,14 @@ impl Buchi {
                 .into_iter()
                 .map(|(mut k, mut v)| {
                     // Rename the source state
-                    k.id = format!("{}_{}", k.id, i);
+                    k.id += self.size * i;
                     // Rename the target states while leaving the word the same
                     for targets in v.values_mut() {
                         *targets = targets
                             .iter()
-                            .map(|s| State::new(format!("{}_{}", s.id, i)))
+                            .map(|s| State {
+                                id: s.id + self.size * i,
+                            })
                             .collect();
                     }
                     (k, v)
@@ -315,12 +330,16 @@ impl Buchi {
             // Map the transitions of the current accepting state to point towards the next one (potentially the first)
             let next_index = (i + 1) % accepting_states.len();
             new_states
-                .entry(State::new(format!("{}_{}", accepting.id, i)))
+                .entry(State {
+                    id: accepting.id + self.size * i,
+                })
                 .and_modify(|transitions| {
                     for targets in transitions.values_mut() {
                         *targets = targets
                             .iter()
-                            .map(|_| State::new(format!("{}_{}", accepting.id, next_index)))
+                            .map(|_| State {
+                                id: accepting.id + next_index * self.size,
+                            })
                             .collect();
                     }
                 });
@@ -328,13 +347,18 @@ impl Buchi {
             nba.states.extend(new_states);
             // Set the last accepting state
             if i == accepting_states.len() - 1 {
-                nba.set_accepting_state(&State::new(format!("{}_{}", accepting.id, i)));
+                nba.set_accepting_state(State {
+                    id: accepting.id + self.size * i,
+                })
             }
         }
         // Copy the initial states
         for initial_state in &self.initial_states {
-            nba.set_initial_state(&State::new(format!("{}_{}", initial_state.id, 0)))
+            nba.set_initial_state(*initial_state)
         }
+
+        // Update the size of the nba
+        nba.size += self.size * self.accepting_states.len();
 
         nba
     }
@@ -347,7 +371,7 @@ impl Display for Buchi {
             "Initial States: ({})",
             self.initial_states
                 .iter()
-                .map(|s| s.id.as_str())
+                .map(|s| format!("s{}", s.id))
                 .collect::<Vec<_>>()
                 .join(", ")
         )?;
@@ -356,7 +380,7 @@ impl Display for Buchi {
             "Accepting States: ({})",
             self.accepting_states
                 .iter()
-                .map(|s| s.id.as_str())
+                .map(|s| format!("s{}", s.id))
                 .collect::<Vec<_>>()
                 .join(", ")
         )?;
@@ -378,9 +402,9 @@ impl Word {
     }
 }
 
-impl State {
-    pub fn new<T: ToString>(id: T) -> Self {
-        State { id: id.to_string() }
+impl<T: ToString> From<T> for Word {
+    fn from(w: T) -> Self {
+        Self { id: w.to_string() }
     }
 }
 
