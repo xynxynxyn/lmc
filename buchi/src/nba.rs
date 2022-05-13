@@ -9,6 +9,7 @@ use std::{
 // - Q_0: set of initial states
 // - F: set of acceptance states
 
+#[derive(Clone, Debug)]
 pub struct Buchi {
     /// A State and it's transitions
     /// These transitions take a word as input and return a set of new states
@@ -48,7 +49,7 @@ impl Buchi {
     }
 
     /// Adds the state if it doesn't already exist
-    pub fn initial_state(&mut self, state: &State) {
+    pub fn set_initial_state(&mut self, state: &State) {
         let state = state.clone();
         self.initial_states.insert(state.clone());
         if !self.states.contains_key(&state) {
@@ -57,7 +58,7 @@ impl Buchi {
     }
 
     /// Adds the state if it doesn't already exist
-    pub fn accepting_state(&mut self, state: &State) {
+    pub fn set_accepting_state(&mut self, state: &State) {
         let state = state.clone();
         self.accepting_states.insert(state.clone());
         if !self.states.contains_key(&state) {
@@ -93,6 +94,10 @@ impl Buchi {
 
     pub fn states(&self) -> HashSet<State> {
         self.states.keys().map(|s| s.clone()).collect()
+    }
+
+    pub fn accepting_states(&self) -> HashSet<State> {
+        self.accepting_states.clone()
     }
 
     /// Return a set of strongly connected components using Tarjan's algorithm
@@ -277,17 +282,105 @@ impl Buchi {
 
         None
     }
+
+    pub fn gnba_to_nba(&self) -> Self {
+        // If the accepting states are empty or there's only one it doesn't matter what you do, just return the whole gnba since it's already an nba
+        if self.accepting_states.len() <= 1 {
+            return self.clone();
+        }
+        // Clone the accepting states into a vec for deterministic ordering
+        let accepting_states: Vec<_> = self.accepting_states.clone().into_iter().collect();
+
+        let mut nba = Buchi::new();
+        // Duplicate the statespace
+        for (i, accepting) in accepting_states.iter().enumerate() {
+            // Create a copy of the statespace for every accepting state and rename them to s0_0, s0_1, s0_2 etc for each iteration
+            let mut new_states: HashMap<State, HashMap<Word, HashSet<State>>> = self
+                .states
+                .clone()
+                .into_iter()
+                .map(|(mut k, mut v)| {
+                    // Rename the source state
+                    k.id = format!("{}_{}", k.id, i);
+                    // Rename the target states while leaving the word the same
+                    for targets in v.values_mut() {
+                        *targets = targets
+                            .iter()
+                            .map(|s| State::new(format!("{}_{}", s.id, i)))
+                            .collect();
+                    }
+                    (k, v)
+                })
+                .collect();
+            // Map the transitions of the current accepting state to point towards the next one (potentially the first)
+            let next_index = (i + 1) % accepting_states.len();
+            new_states
+                .entry(State::new(format!("{}_{}", accepting.id, i)))
+                .and_modify(|transitions| {
+                    for targets in transitions.values_mut() {
+                        *targets = targets
+                            .iter()
+                            .map(|_| State::new(format!("{}_{}", accepting.id, next_index)))
+                            .collect();
+                    }
+                });
+
+            nba.states.extend(new_states);
+            // Set the last accepting state
+            if i == accepting_states.len() - 1 {
+                nba.set_accepting_state(&State::new(format!("{}_{}", accepting.id, i)));
+            }
+        }
+        // Copy the initial states
+        for initial_state in &self.initial_states {
+            nba.set_initial_state(&State::new(format!("{}_{}", initial_state.id, 0)))
+        }
+
+        nba
+    }
+}
+
+impl Display for Buchi {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "Initial States: ({})",
+            self.initial_states
+                .iter()
+                .map(|s| s.id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )?;
+        writeln!(
+            f,
+            "Accepting States: ({})",
+            self.accepting_states
+                .iter()
+                .map(|s| s.id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )?;
+        writeln!(f, "Transitions:")?;
+        for (s, transitions) in &self.states {
+            for (word, targets) in transitions {
+                for t in targets {
+                    writeln!(f, "{} --({})--> {}", s.id, word.id, t.id)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Word {
-    pub fn new(id: String) -> Self {
-        Word { id }
+    pub fn new<T: ToString>(id: T) -> Self {
+        Word { id: id.to_string() }
     }
 }
 
 impl State {
-    pub fn new(id: String) -> Self {
-        State { id }
+    pub fn new<T: ToString>(id: T) -> Self {
+        State { id: id.to_string() }
     }
 }
 

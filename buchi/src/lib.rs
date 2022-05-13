@@ -6,9 +6,9 @@ mod test {
     #[test]
     pub fn two_state_nba() {
         let mut nba = Buchi::new();
-        let s1 = State::new("s1".into());
-        let s2 = State::new("s2".into());
-        let w = Word::new("a".into());
+        let s1 = State::new("s1");
+        let s2 = State::new("s2");
+        let w = Word::new("a");
 
         nba.add_transition(&s1, &s2, &w);
         nba.add_transition(&s2, &s1, &w);
@@ -20,11 +20,11 @@ mod test {
     #[test]
     pub fn three_state_nba() {
         let mut nba = Buchi::new();
-        let s1 = State::new("s1".into());
-        let s2 = State::new("s2".into());
-        let s3 = State::new("s3".into());
-        let a = Word::new("a".into());
-        let b = Word::new("a".into());
+        let s1 = State::new("s1");
+        let s2 = State::new("s2");
+        let s3 = State::new("s3");
+        let a = Word::new("a");
+        let b = Word::new("a");
 
         nba.add_transition(&s1, &s2, &a);
         nba.add_transition(&s1, &s3, &b);
@@ -43,17 +43,17 @@ mod test {
     #[test]
     pub fn tarjan() {
         let mut nba = Buchi::new();
-        let a = State::new("a".into());
-        let b = State::new("b".into());
-        let e = State::new("e".into());
-        let c = State::new("c".into());
-        let d = State::new("d".into());
-        let f = State::new("f".into());
-        let g = State::new("g".into());
-        let h = State::new("h".into());
-        let x = Word::new("x".into());
-        let y = Word::new("y".into());
-        let z = Word::new("z".into());
+        let a = State::new("a");
+        let b = State::new("b");
+        let e = State::new("e");
+        let c = State::new("c");
+        let d = State::new("d");
+        let f = State::new("f");
+        let g = State::new("g");
+        let h = State::new("h");
+        let x = Word::new("x");
+        let y = Word::new("y");
+        let z = Word::new("z");
 
         nba.add_transition(&a, &b, &x);
         nba.add_transition(&b, &e, &x);
@@ -77,17 +77,17 @@ mod test {
     #[test]
     pub fn verify_complex() {
         let mut nba = Buchi::new();
-        let a = State::new("a".into());
-        let b = State::new("b".into());
-        let e = State::new("e".into());
-        let c = State::new("c".into());
-        let d = State::new("d".into());
-        let f = State::new("f".into());
-        let g = State::new("g".into());
-        let h = State::new("h".into());
-        let x = Word::new("x".into());
-        let y = Word::new("y".into());
-        let z = Word::new("z".into());
+        let a = State::new("a");
+        let b = State::new("b");
+        let e = State::new("e");
+        let c = State::new("c");
+        let d = State::new("d");
+        let f = State::new("f");
+        let g = State::new("g");
+        let h = State::new("h");
+        let x = Word::new("x");
+        let y = Word::new("y");
+        let z = Word::new("z");
 
         nba.add_transition(&a, &b, &x);
         nba.add_transition(&b, &e, &x);
@@ -104,8 +104,8 @@ mod test {
         nba.add_transition(&g, &f, &y);
         nba.add_transition(&f, &g, &z);
 
-        nba.initial_state(&a);
-        nba.accepting_state(&f);
+        nba.set_initial_state(&a);
+        nba.set_accepting_state(&f);
 
         let trace = nba.verify();
         assert!(trace.is_err(), "{:?}", trace);
@@ -117,16 +117,16 @@ mod test {
     #[test]
     pub fn verify_simple_counter() {
         let mut nba = Buchi::new();
-        let s1 = State::new("s1".into());
-        let s2 = State::new("s2".into());
-        let a = Word::new("a".into());
-        let b = Word::new("b".into());
+        let s1 = State::new("s1");
+        let s2 = State::new("s2");
+        let a = Word::new("a");
+        let b = Word::new("b");
 
         nba.add_transition(&s1, &s2, &a);
         nba.add_transition(&s2, &s1, &b);
 
-        nba.initial_state(&s1);
-        nba.accepting_state(&s2);
+        nba.set_initial_state(&s1);
+        nba.set_accepting_state(&s2);
 
         let result = nba.verify();
         assert!(result.is_err(), "{:?}", result);
@@ -141,17 +141,47 @@ mod test {
     #[test]
     pub fn verify_empty() {
         let mut nba = Buchi::new();
-        let s1 = State::new("s1".into());
-        let s2 = State::new("s2".into());
-        let a = Word::new("a".into());
-        let b = Word::new("b".into());
+        let s1 = State::new("s1");
+        let s2 = State::new("s2");
+        let a = Word::new("a");
+        let b = Word::new("b");
 
         nba.add_transition(&s1, &s2, &a);
         nba.add_transition(&s2, &s1, &b);
 
-        nba.initial_state(&s1);
+        nba.set_initial_state(&s1);
 
         let result = nba.verify();
         assert!(result.is_ok(), "{:?}", result);
+    }
+
+    #[test]
+    pub fn gnba_to_nba() {
+        let mut gnba = Buchi::new();
+        let a = State::new("a");
+        let b = State::new("b");
+        let c = State::new("c");
+        let x = Word::new("x");
+        let y = Word::new("y");
+        let z = Word::new("z");
+
+        gnba.add_transition(&a, &b, &x);
+        gnba.add_transition(&b, &c, &y);
+        gnba.add_transition(&c, &a, &z);
+
+        gnba.set_initial_state(&c);
+        gnba.set_accepting_state(&b);
+        gnba.set_accepting_state(&a);
+
+        let nba = gnba.gnba_to_nba();
+        assert!(nba.states().len() == 6, "{:?}", nba.states());
+        // The gnba originally had 2 accepting states, the resulting nba should only have one
+        assert!(gnba.accepting_states().len() == 2);
+        assert!(
+            nba.accepting_states().len() == 1,
+            "{:?}",
+            nba.accepting_states()
+        );
+        assert!(nba.verify().is_err(), "{}", nba);
     }
 }
