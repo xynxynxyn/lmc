@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 use nom::{
     branch::alt,
@@ -10,12 +10,12 @@ use nom::{
 
 use crate::error::Error;
 
-#[derive(PartialEq, Clone, Debug, Hash)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct Formula {
     pub root_expr: Expr,
 }
 
-#[derive(PartialEq, Clone, Debug, Hash)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub enum Expr {
     True,
     False,
@@ -67,6 +67,11 @@ impl Formula {
             root_expr: root_expr.1,
         })
     }
+
+    /// Compute the closure of the given formula (Every subformula and its negation)
+    pub fn closure(&self) -> HashSet<Expr> {
+        self.root_expr.closure()
+    }
 }
 
 impl Display for Formula {
@@ -76,6 +81,65 @@ impl Display for Formula {
 }
 
 impl Expr {
+    fn closure(&self) -> HashSet<Self> {
+        match self {
+            Expr::True | Expr::False => HashSet::from([Expr::True, Expr::False]),
+            e @ Expr::Atomic(_) => HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]),
+            Expr::Not(ex) => ex.closure(),
+            e @ Expr::Next(ex) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(ex.closure());
+                closure
+            }
+            e @ Expr::Globally(ex) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(ex.closure());
+                closure
+            }
+            e @ Expr::Finally(ex) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(ex.closure());
+                closure
+            }
+            e @ Expr::And(lhs, rhs) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(lhs.closure());
+                closure.extend(rhs.closure());
+                closure
+            }
+            e @ Expr::Or(lhs, rhs) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(lhs.closure());
+                closure.extend(rhs.closure());
+                closure
+            }
+            e @ Expr::Until(lhs, rhs) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(lhs.closure());
+                closure.extend(rhs.closure());
+                closure
+            }
+            e @ Expr::WeakUntil(lhs, rhs) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(lhs.closure());
+                closure.extend(rhs.closure());
+                closure
+            }
+            e @ Expr::Release(lhs, rhs) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(lhs.closure());
+                closure.extend(rhs.closure());
+                closure
+            }
+            e @ Expr::StrongRelease(lhs, rhs) => {
+                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
+                closure.extend(lhs.closure());
+                closure.extend(rhs.closure());
+                closure
+            }
+        }
+    }
+
     fn simplify(&self) -> Self {
         match self {
             // Duality laws

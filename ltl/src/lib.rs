@@ -3,7 +3,7 @@ pub mod transform;
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     use crate::transform::*;
 
@@ -63,6 +63,40 @@ mod tests {
                 "'{}' in PNF should be '{}' but is '{}'",
                 l, rhs, lhs
             );
+        }
+    }
+
+    #[test]
+    fn closure() {
+        let values = HashMap::from([
+            (
+                Formula::parse("& a b").unwrap(),
+                HashSet::from([
+                    Expr::And(
+                        Box::new(Expr::Atomic("a".into())),
+                        Box::new(Expr::Atomic("b".into())),
+                    ),
+                    Expr::Not(Box::new(Expr::And(
+                        Box::new(Expr::Atomic("a".into())),
+                        Box::new(Expr::Atomic("b".into())),
+                    ))),
+                    Expr::Atomic("a".into()),
+                    Expr::Not(Box::new(Expr::Atomic("a".into()))),
+                    Expr::Atomic("b".into()),
+                    Expr::Not(Box::new(Expr::Atomic("b".into()))),
+                ]),
+            ),
+            (
+                Formula::parse("!a").unwrap(),
+                HashSet::from([
+                    Expr::Atomic("a".into()),
+                    Expr::Not(Box::new(Expr::Atomic("a".into()))),
+                ]),
+            ),
+        ]);
+
+        for (l, r) in values {
+            assert_eq!(l.closure(), r);
         }
     }
 }
