@@ -1,5 +1,6 @@
-use clap::{Parser, Subcommand};
 use anyhow::Result;
+use clap::{Parser, Subcommand};
+use ltl::transform::Formula;
 use std::ffi::OsString;
 use std::{
     collections::{HashSet, VecDeque},
@@ -24,6 +25,11 @@ enum Commands {
         /// Number of PNML files which contain PetriNets to be analysed
         files: Vec<OsString>,
     },
+    /// Convert a list of LTL formula to PNF form
+    PNF {
+        /// LTL formulas in prefix notation, for example '& a b' or '| X a G b'
+        formulas: Vec<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -35,6 +41,15 @@ fn main() -> Result<()> {
             for path in files {
                 println!("-- Analysing PNML file '{}'", path.to_string_lossy());
                 analyse_petri_net(&path)?;
+            }
+        }
+        Commands::PNF { formulas } => {
+            let pnf = formulas.into_iter().map(|s| Formula::parse(s));
+            for p in pnf.map(|f| f.map(|f| f.pnf())) {
+                match p {
+                    Ok(formula) => println!("{}", formula),
+                    Err(e) => println!("Err: {}", e),
+                }
             }
         }
     }

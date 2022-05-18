@@ -54,13 +54,13 @@ impl Formula {
         let root_expr = Expr::parse(input);
         let root_expr = root_expr.map_err(|e| {
             if e.is_incomplete() {
-                crate::error::Error::Incomplete(input.into())
+                Error::Incomplete(input.into())
             } else {
-                crate::error::Error::Parsing(e.to_string())
+                Error::Parsing(e.to_string())
             }
         })?;
         if root_expr.0 != "" {
-            return Err(Error::Incomplete(input.into()));
+            return Err(Error::Leftover(input.into(), root_expr.0.into()));
         }
 
         Ok(Self {
