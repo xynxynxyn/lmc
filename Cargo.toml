@@ -7,5 +7,8 @@ edition = "2021"
 
 [dependencies]
 petri = { path = "./petri" }
+ltl = { path = "./ltl" }
+buchi = { path = "./buchi" }
+
 clap = { version = "3.1.17", features = ["derive"] }
 anyhow = "1.0.57"
