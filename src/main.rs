@@ -34,7 +34,15 @@ enum Commands {
         formulas: Vec<String>,
     },
     /// Transform an LTL formula to a corresponding GNBA
-    GNBA { formula: String },
+    GNBA {
+        /// The formula to transform
+        formula: String,
+    },
+    /// Transform an LTL formula to a corresponding NBA
+    NBA {
+        /// The formula to transform
+        formula: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -60,6 +68,10 @@ fn main() -> Result<()> {
         Commands::GNBA { formula } => {
             let formula = Formula::parse(formula)?;
             println!("{}", ltl_to_gnba(&formula));
+        }
+        Commands::NBA { formula } => {
+            let formula = Formula::parse(formula)?;
+            println!("{}", ltl_to_gnba(&formula).gnba_to_nba());
         }
     }
 
