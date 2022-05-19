@@ -120,6 +120,10 @@ fn satisfies(set: &HashSet<Expr>, expr: &Expr) -> bool {
             !((set.contains(e) && (!set.contains(lhs) || !set.contains(rhs)))
                 || (set.contains(lhs) && set.contains(rhs) && !set.contains(e)))
         }
+        e @ Expr::Or(lhs, rhs) => {
+            !((set.contains(e) && !set.contains(lhs) && !set.contains(rhs))
+                || ((set.contains(lhs) || set.contains(rhs)) && !set.contains(e)))
+        }
         e @ Expr::Until(lhs, rhs) => {
             !(set.contains(rhs) && !set.contains(e)
                 || (set.contains(e) && !set.contains(rhs) && !set.contains(lhs)))
