@@ -1,5 +1,5 @@
 pub mod error;
-pub mod transform;
+pub mod formula;
 
 #[cfg(test)]
 mod tests {
@@ -7,7 +7,7 @@ mod tests {
 
     use itertools::Itertools;
 
-    use crate::transform::*;
+    use crate::formula::*;
 
     #[test]
     fn parse1() {

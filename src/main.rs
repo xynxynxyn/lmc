@@ -2,7 +2,7 @@ mod transform;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ltl::transform::Formula;
+use ltl::formula::Formula;
 use std::ffi::OsString;
 use std::{
     collections::{HashSet, VecDeque},
