@@ -39,6 +39,10 @@ pub struct Trace {
 }
 
 impl Buchi {
+    /// Tranform the automataon into HOA formatted string
+    pub fn hoa(&self) -> String {
+        todo!()
+    }
     /// Create a new empty Buchi Automata
     pub fn new() -> Self {
         Buchi {
@@ -388,7 +392,7 @@ impl Display for Buchi {
         for (s, transitions) in &self.states {
             for (word, targets) in transitions {
                 for t in targets {
-                    writeln!(f, "{} --({})--> {}", s.id, word.id, t.id)?;
+                    writeln!(f, "s{} --({})--> s{}", s.id, word.id, t.id)?;
                 }
             }
         }

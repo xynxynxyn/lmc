@@ -3,7 +3,7 @@ pub mod transform;
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::{BTreeSet, HashMap};
 
     use itertools::Itertools;
 
@@ -73,7 +73,7 @@ mod tests {
         let values = HashMap::from([
             (
                 Formula::parse("& a b").unwrap(),
-                HashSet::from([
+                BTreeSet::from([
                     Expr::And(
                         Box::new(Expr::Atomic("a".into())),
                         Box::new(Expr::Atomic("b".into())),
@@ -90,7 +90,7 @@ mod tests {
             ),
             (
                 Formula::parse("!a").unwrap(),
-                HashSet::from([
+                BTreeSet::from([
                     Expr::Atomic("a".into()),
                     Expr::Not(Box::new(Expr::Atomic("a".into()))),
                 ]),
@@ -106,7 +106,7 @@ mod tests {
     fn elementary1() {
         let elementary_sets = Formula::parse("& a b").unwrap().elementary();
         let should_contain = vec![
-            HashSet::from([
+            BTreeSet::from([
                 Expr::Atomic("a".into()),
                 Expr::Atomic("b".into()),
                 Expr::And(
@@ -114,7 +114,7 @@ mod tests {
                     Box::new(Expr::Atomic("b".into())),
                 ),
             ]),
-            HashSet::from([
+            BTreeSet::from([
                 Expr::Not(Box::new(Expr::Atomic("a".into()))),
                 Expr::Atomic("b".into()),
                 Expr::Not(Box::new(Expr::And(
@@ -122,7 +122,7 @@ mod tests {
                     Box::new(Expr::Atomic("b".into())),
                 ))),
             ]),
-            HashSet::from([
+            BTreeSet::from([
                 Expr::Not(Box::new(Expr::Atomic("b".into()))),
                 Expr::Atomic("a".into()),
                 Expr::Not(Box::new(Expr::And(
@@ -130,7 +130,7 @@ mod tests {
                     Box::new(Expr::Atomic("b".into())),
                 ))),
             ]),
-            HashSet::from([
+            BTreeSet::from([
                 Expr::Not(Box::new(Expr::Atomic("a".into()))),
                 Expr::Not(Box::new(Expr::Atomic("b".into()))),
                 Expr::Not(Box::new(Expr::And(

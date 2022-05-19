@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::{collections::HashSet, fmt::Display};
+use std::{collections::BTreeSet, fmt::Display};
 
 use nom::{
     branch::alt,
@@ -70,11 +70,11 @@ impl Formula {
     }
 
     /// Compute the closure of the given formula (Every subformula and its negation)
-    pub fn closure(&self) -> HashSet<Expr> {
+    pub fn closure(&self) -> BTreeSet<Expr> {
         self.root_expr.closure()
     }
 
-    pub fn elementary(&self) -> Vec<HashSet<Expr>> {
+    pub fn elementary(&self) -> Vec<BTreeSet<Expr>> {
         // All non negated subformulae
         let closure = self.root_expr.basic_closure();
         let elementary = closure
@@ -82,7 +82,7 @@ impl Formula {
             .into_iter()
             .powerset()
             .map(|s| {
-                let mut s: HashSet<_> = s.into_iter().collect();
+                let mut s: BTreeSet<_> = s.into_iter().collect();
                 for f in &closure {
                     if !s.contains(f) {
                         s.insert(Expr::Not(Box::new(f.clone())));
@@ -106,9 +106,21 @@ impl Formula {
             });
         elementary.collect()
     }
+
+    pub fn alphabet(&self) -> BTreeSet<Expr> {
+        let mut alphabet = self.root_expr.alphabet();
+        alphabet.append(
+            &mut alphabet
+                .clone()
+                .into_iter()
+                .map(|a| Expr::Not(Box::new(a)))
+                .collect(),
+        );
+        alphabet
+    }
 }
 
-fn satisfies(set: &HashSet<Expr>, expr: &Expr) -> bool {
+fn satisfies(set: &BTreeSet<Expr>, expr: &Expr) -> bool {
     match expr {
         //not_e @ Expr::Not(e) => {
         //    let mut new_set = set.clone();
@@ -139,62 +151,102 @@ impl Display for Formula {
 }
 
 impl Expr {
-    pub fn print_set(set: &HashSet<Self>) -> String {
+    pub fn alphabet(&self) -> BTreeSet<Expr> {
+        match self {
+            e @ Expr::True | e @ Expr::False | e @ Expr::Atomic(_) => BTreeSet::from([e.clone()]),
+            Expr::Next(e) => e.alphabet(),
+            Expr::Globally(e) => e.alphabet(),
+            Expr::Finally(e) => e.alphabet(),
+            Expr::Not(e) => e.alphabet(),
+            Expr::And(lhs, rhs) => {
+                let mut alphabet = BTreeSet::from(lhs.alphabet());
+                alphabet.extend(rhs.alphabet());
+                alphabet
+            }
+            Expr::Or(lhs, rhs) => {
+                let mut alphabet = BTreeSet::from(lhs.alphabet());
+                alphabet.extend(rhs.alphabet());
+                alphabet
+            }
+            Expr::Until(lhs, rhs) => {
+                let mut alphabet = BTreeSet::from(lhs.alphabet());
+                alphabet.extend(rhs.alphabet());
+                alphabet
+            }
+            Expr::WeakUntil(lhs, rhs) => {
+                let mut alphabet = BTreeSet::from(lhs.alphabet());
+                alphabet.extend(rhs.alphabet());
+                alphabet
+            }
+            Expr::Release(lhs, rhs) => {
+                let mut alphabet = BTreeSet::from(lhs.alphabet());
+                alphabet.extend(rhs.alphabet());
+                alphabet
+            }
+            Expr::StrongRelease(lhs, rhs) => {
+                let mut alphabet = BTreeSet::from(lhs.alphabet());
+                alphabet.extend(rhs.alphabet());
+                alphabet
+            }
+        }
+    }
+
+    pub fn print_set(set: &BTreeSet<Self>) -> String {
         format!("({})", set.iter().sorted().join(", "))
     }
 
-    fn basic_closure(&self) -> HashSet<Self> {
+    fn basic_closure(&self) -> BTreeSet<Self> {
         match self {
-            Expr::True | Expr::False => HashSet::from([Expr::True, Expr::False]),
-            e @ Expr::Atomic(_) => HashSet::from([e.clone()]),
+            Expr::True | Expr::False => BTreeSet::from([Expr::True, Expr::False]),
+            e @ Expr::Atomic(_) => BTreeSet::from([e.clone()]),
             Expr::Not(ex) => ex.basic_closure(),
             e @ Expr::Next(ex) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(ex.basic_closure());
                 closure
             }
             e @ Expr::Globally(ex) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(ex.basic_closure());
                 closure
             }
             e @ Expr::Finally(ex) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(ex.basic_closure());
                 closure
             }
             e @ Expr::And(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(lhs.basic_closure());
                 closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::Or(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(lhs.basic_closure());
                 closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::Until(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(lhs.basic_closure());
                 closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::WeakUntil(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(lhs.basic_closure());
                 closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::Release(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(lhs.basic_closure());
                 closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::StrongRelease(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone()]);
+                let mut closure = BTreeSet::from([e.clone()]);
                 closure.extend(lhs.basic_closure());
                 closure.extend(rhs.basic_closure());
                 closure
@@ -202,13 +254,16 @@ impl Expr {
         }
     }
 
-    fn closure(&self) -> HashSet<Self> {
+    fn closure(&self) -> BTreeSet<Self> {
         let mut closure = self.basic_closure();
         let negated_closure = closure
             .clone()
             .into_iter()
-            .map(|f| Expr::Not(Box::new(f)))
-            .collect::<HashSet<_>>();
+            .map(|f| match f {
+                e @ Expr::True | e @ Expr::False => e,
+                _ => Expr::Not(Box::new(f)),
+            })
+            .collect::<BTreeSet<_>>();
         closure.extend(negated_closure);
         closure
     }

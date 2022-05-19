@@ -9,6 +9,7 @@ use std::{
     fs,
     time::{Duration, SystemTime},
 };
+use transform::ltl_to_gnba;
 
 // opt parsing
 #[derive(Parser)]
@@ -32,6 +33,8 @@ enum Commands {
         /// LTL formulas in prefix notation, for example '& a b' or '| X a G b'
         formulas: Vec<String>,
     },
+    /// Transform an LTL formula to a corresponding GNBA
+    GNBA { formula: String },
 }
 
 fn main() -> Result<()> {
@@ -53,6 +56,10 @@ fn main() -> Result<()> {
                     Err(e) => println!("Err: {}", e),
                 }
             }
+        }
+        Commands::GNBA { formula } => {
+            let formula = Formula::parse(formula)?;
+            println!("{}", ltl_to_gnba(&formula));
         }
     }
 
