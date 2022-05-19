@@ -5,6 +5,8 @@ pub mod transform;
 mod tests {
     use std::collections::{HashMap, HashSet};
 
+    use itertools::Itertools;
+
     use crate::transform::*;
 
     #[test]
@@ -97,6 +99,62 @@ mod tests {
 
         for (l, r) in values {
             assert_eq!(l.closure(), r);
+        }
+    }
+
+    #[test]
+    fn elementary1() {
+        let elementary_sets = Formula::parse("& a b").unwrap().elementary();
+        let should_contain = vec![
+            HashSet::from([
+                Expr::Atomic("a".into()),
+                Expr::Atomic("b".into()),
+                Expr::And(
+                    Box::new(Expr::Atomic("a".into())),
+                    Box::new(Expr::Atomic("b".into())),
+                ),
+            ]),
+            HashSet::from([
+                Expr::Not(Box::new(Expr::Atomic("a".into()))),
+                Expr::Atomic("b".into()),
+                Expr::Not(Box::new(Expr::And(
+                    Box::new(Expr::Atomic("a".into())),
+                    Box::new(Expr::Atomic("b".into())),
+                ))),
+            ]),
+            HashSet::from([
+                Expr::Not(Box::new(Expr::Atomic("b".into()))),
+                Expr::Atomic("a".into()),
+                Expr::Not(Box::new(Expr::And(
+                    Box::new(Expr::Atomic("a".into())),
+                    Box::new(Expr::Atomic("b".into())),
+                ))),
+            ]),
+            HashSet::from([
+                Expr::Not(Box::new(Expr::Atomic("a".into()))),
+                Expr::Not(Box::new(Expr::Atomic("b".into()))),
+                Expr::Not(Box::new(Expr::And(
+                    Box::new(Expr::Atomic("a".into())),
+                    Box::new(Expr::Atomic("b".into())),
+                ))),
+            ]),
+        ];
+
+        assert!(
+            elementary_sets.len() == should_contain.len(),
+            "{}",
+            elementary_sets
+                .into_iter()
+                .map(|s| Expr::print_set(&s))
+                .join(", ")
+        );
+        for e in &elementary_sets {
+            assert!(
+                should_contain.contains(e),
+                "{:?} != {:?}",
+                elementary_sets,
+                should_contain
+            );
         }
     }
 }

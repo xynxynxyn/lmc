@@ -1,3 +1,5 @@
+mod transform;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use ltl::transform::Formula;

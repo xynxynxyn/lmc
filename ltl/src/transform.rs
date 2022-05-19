@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{collections::HashSet, fmt::Display};
 
 use nom::{
@@ -15,14 +16,14 @@ pub struct Formula {
     pub root_expr: Expr,
 }
 
-#[derive(Eq, PartialEq, Clone, Debug, Hash)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash, PartialOrd, Ord)]
 pub enum Expr {
     True,
     False,
     Atomic(String),
+    Not(Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
     And(Box<Expr>, Box<Expr>),
-    Not(Box<Expr>),
     Next(Box<Expr>),
     Until(Box<Expr>, Box<Expr>),
     WeakUntil(Box<Expr>, Box<Expr>),
@@ -72,6 +73,59 @@ impl Formula {
     pub fn closure(&self) -> HashSet<Expr> {
         self.root_expr.closure()
     }
+
+    pub fn elementary(&self) -> Vec<HashSet<Expr>> {
+        // All non negated subformulae
+        let closure = self.root_expr.basic_closure();
+        let elementary = closure
+            .clone()
+            .into_iter()
+            .powerset()
+            .map(|s| {
+                let mut s: HashSet<_> = s.into_iter().collect();
+                for f in &closure {
+                    if !s.contains(f) {
+                        s.insert(Expr::Not(Box::new(f.clone())));
+                    }
+                }
+                s
+            })
+            .filter(|s| {
+                for e in &self.closure() {
+                    if !satisfies(s, e) {
+                        println!(
+                            "filtering out {} because it does not satisfy {}",
+                            Expr::print_set(s),
+                            e
+                        );
+                        return false;
+                    }
+                }
+
+                true
+            });
+        elementary.collect()
+    }
+}
+
+fn satisfies(set: &HashSet<Expr>, expr: &Expr) -> bool {
+    match expr {
+        //not_e @ Expr::Not(e) => {
+        //    let mut new_set = set.clone();
+        //    new_set.insert(*e.clone());
+        //    new_set.remove(not_e);
+        //    !satisfies(&new_set, &*e)
+        //}
+        e @ Expr::And(lhs, rhs) => {
+            !((set.contains(e) && (!set.contains(lhs) || !set.contains(rhs)))
+                || (set.contains(lhs) && set.contains(rhs) && !set.contains(e)))
+        }
+        e @ Expr::Until(lhs, rhs) => {
+            !(set.contains(rhs) && !set.contains(e)
+                || (set.contains(e) && !set.contains(rhs) && !set.contains(lhs)))
+        }
+        _ => true,
+    }
 }
 
 impl Display for Formula {
@@ -81,63 +135,78 @@ impl Display for Formula {
 }
 
 impl Expr {
-    fn closure(&self) -> HashSet<Self> {
+    pub fn print_set(set: &HashSet<Self>) -> String {
+        format!("({})", set.iter().sorted().join(", "))
+    }
+
+    fn basic_closure(&self) -> HashSet<Self> {
         match self {
             Expr::True | Expr::False => HashSet::from([Expr::True, Expr::False]),
-            e @ Expr::Atomic(_) => HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]),
-            Expr::Not(ex) => ex.closure(),
+            e @ Expr::Atomic(_) => HashSet::from([e.clone()]),
+            Expr::Not(ex) => ex.basic_closure(),
             e @ Expr::Next(ex) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(ex.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(ex.basic_closure());
                 closure
             }
             e @ Expr::Globally(ex) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(ex.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(ex.basic_closure());
                 closure
             }
             e @ Expr::Finally(ex) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(ex.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(ex.basic_closure());
                 closure
             }
             e @ Expr::And(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(lhs.closure());
-                closure.extend(rhs.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(lhs.basic_closure());
+                closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::Or(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(lhs.closure());
-                closure.extend(rhs.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(lhs.basic_closure());
+                closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::Until(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(lhs.closure());
-                closure.extend(rhs.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(lhs.basic_closure());
+                closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::WeakUntil(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(lhs.closure());
-                closure.extend(rhs.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(lhs.basic_closure());
+                closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::Release(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(lhs.closure());
-                closure.extend(rhs.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(lhs.basic_closure());
+                closure.extend(rhs.basic_closure());
                 closure
             }
             e @ Expr::StrongRelease(lhs, rhs) => {
-                let mut closure = HashSet::from([e.clone(), Expr::Not(Box::new(e.clone()))]);
-                closure.extend(lhs.closure());
-                closure.extend(rhs.closure());
+                let mut closure = HashSet::from([e.clone()]);
+                closure.extend(lhs.basic_closure());
+                closure.extend(rhs.basic_closure());
                 closure
             }
         }
+    }
+
+    fn closure(&self) -> HashSet<Self> {
+        let mut closure = self.basic_closure();
+        let negated_closure = closure
+            .clone()
+            .into_iter()
+            .map(|f| Expr::Not(Box::new(f)))
+            .collect::<HashSet<_>>();
+        closure.extend(negated_closure);
+        closure
     }
 
     fn simplify(&self) -> Self {
