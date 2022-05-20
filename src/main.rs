@@ -67,11 +67,11 @@ fn main() -> Result<()> {
         }
         Commands::GNBA { formula } => {
             let formula = Formula::parse(formula)?;
-            println!("{}", ltl_to_gnba(&formula));
+            println!("{}", ltl_to_gnba(&formula).hoa());
         }
         Commands::NBA { formula } => {
             let formula = Formula::parse(formula)?;
-            println!("{}", ltl_to_gnba(&formula).gnba_to_nba());
+            println!("{}", ltl_to_gnba(&formula).gnba_to_nba().hoa());
         }
     }
 

@@ -48,6 +48,7 @@ name = "buchi"
 version = "0.1.0"
 dependencies = [
  "derivative",
+ "itertools",
  "thiserror",
 ]
 

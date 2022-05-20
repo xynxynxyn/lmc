@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
@@ -19,6 +20,7 @@ pub struct Buchi {
     states: HashMap<State, HashMap<Word, HashSet<State>>>,
     accepting_states: HashSet<State>,
     initial_states: HashSet<State>,
+    labels: HashMap<State, String>,
     size: usize,
 }
 
@@ -41,12 +43,80 @@ pub struct Trace {
 impl Buchi {
     /// Tranform the automataon into HOA formatted string
     pub fn hoa(&self) -> String {
-        todo!()
+        let version = "HOA: v1".into();
+        let states = format!("States: {}", self.states.len());
+        let start = if self.initial_states.is_empty() {
+            "".into()
+        } else {
+            format!(
+                "Start: {}",
+                self.initial_states
+                    .iter()
+                    .sorted_by_key(|s| s.id)
+                    .map(|s| s.id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" & ")
+            )
+        };
+        // If there are 0 accepting states any run is accepted since this is a GNBA
+        let acceptance = if self.accepting_states.len() > 0 {
+            format!(
+                "Acceptance: {} {}",
+                self.accepting_states.len(),
+                self.accepting_states
+                    .iter()
+                    .sorted_by_key(|s| s.id)
+                    .map(|s| format!("Inf({})", s.id))
+                    .collect::<Vec<_>>()
+                    .join(" & ")
+            )
+        } else {
+            "Acceptance: 0 t".into()
+        };
+
+        let header = vec![version, states, start, acceptance].join("\n");
+
+        let mut states = Vec::with_capacity(self.states.len());
+
+        for (state, transitions) in self.states.iter().sorted_by_key(|(s, _)| s.id) {
+            let state_name = format!(
+                "State: {}{}",
+                state.id,
+                if let Some(label) = self.labels.get(&state) {
+                    format!(" \"{}\"", label)
+                } else {
+                    "".into()
+                }
+            );
+
+            let mut edges = vec![];
+            for (word, targets) in transitions {
+                for t in targets {
+                    edges.push(format!(
+                        "\n  {} {}{}",
+                        word.id,
+                        t.id,
+                        if self.accepting_states.contains(&t) {
+                            format!(" {{{}}}", t.id)
+                        } else {
+                            "".into()
+                        }
+                    ))
+                }
+            }
+
+            states.push(format!("{}{}", state_name, edges.join("")));
+        }
+
+        let body = format!("--BODY--\n{}\n--END--", states.join("\n"));
+
+        format!("{}\n{}", header, body)
     }
     /// Create a new empty Buchi Automata
     pub fn new() -> Self {
         Buchi {
             states: HashMap::new(),
+            labels: HashMap::new(),
             accepting_states: HashSet::new(),
             initial_states: HashSet::new(),
             size: 0,
@@ -59,6 +129,15 @@ impl Buchi {
         let state = State { id };
         self.size += 1;
         self.states.insert(state, HashMap::new());
+        state
+    }
+
+    pub fn new_labeled_state(&mut self, label: String) -> State {
+        let id = self.size;
+        let state = State { id };
+        self.size += 1;
+        self.states.insert(state, HashMap::new());
+        self.labels.insert(state, label);
         state
     }
 

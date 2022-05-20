@@ -15,7 +15,7 @@ pub fn ltl_to_gnba(formula: &Formula) -> Buchi {
 
     // Populate the states
     for e in &elementary {
-        states.insert(e, gnba.new_state());
+        states.insert(e, gnba.new_labeled_state(Expr::print_set(e)));
     }
 
     // Set initial states
@@ -39,34 +39,53 @@ pub fn ltl_to_gnba(formula: &Formula) -> Buchi {
     // Configure transitions
     for b in &elementary {
         let intersection = BTreeSet::from_iter(b.intersection(&alphabet).map(Expr::clone));
-        if intersection.is_empty() {
-            // This state has no transitions
-            continue;
-        }
 
         let label = Expr::print_set(&intersection);
 
         for expr in &closure {
-            if let Expr::Next(next) = expr {
-                for target in elementary.iter().filter(|e| e.contains(next)) {
-                    gnba.add_transition(
-                        *states.get(b).unwrap(),
-                        *states.get(target).unwrap(),
-                        label.clone(),
-                    );
-                }
-            } else if let until @ Expr::Until(lhs, rhs) = expr {
-                if b.contains(rhs) {
-                    // Connect this state to every other state
-                    for target in &elementary {
+            if let next @ Expr::Next(ex) = expr {
+                if b.contains(next) {
+                    for target in elementary.iter().filter(|e| e.contains(ex)) {
                         gnba.add_transition(
                             *states.get(b).unwrap(),
                             *states.get(target).unwrap(),
                             label.clone(),
-                        )
+                        );
                     }
-                } else if b.contains(lhs) {
-                    for target in elementary.iter().filter(|e| e.contains(until)) {
+                } else {
+                    for target in elementary.iter().filter(|e| !e.contains(ex)) {
+                        gnba.add_transition(
+                            *states.get(b).unwrap(),
+                            *states.get(target).unwrap(),
+                            label.clone(),
+                        );
+                    }
+                }
+            } else if let until @ Expr::Until(lhs, rhs) = expr {
+                if b.contains(until) {
+                    if b.contains(rhs) {
+                        // Connect this state to every other state
+                        for target in &elementary {
+                            gnba.add_transition(
+                                *states.get(b).unwrap(),
+                                *states.get(target).unwrap(),
+                                label.clone(),
+                            )
+                        }
+                    } else if b.contains(lhs) {
+                        for target in elementary.iter().filter(|e| e.contains(until)) {
+                            gnba.add_transition(
+                                *states.get(b).unwrap(),
+                                *states.get(target).unwrap(),
+                                label.clone(),
+                            )
+                        }
+                    }
+                } else {
+                    for target in elementary
+                        .iter()
+                        .filter(|e| !b.contains(rhs) && (!b.contains(lhs) || e.contains(until)))
+                    {
                         gnba.add_transition(
                             *states.get(b).unwrap(),
                             *states.get(target).unwrap(),
@@ -78,9 +97,5 @@ pub fn ltl_to_gnba(formula: &Formula) -> Buchi {
         }
     }
 
-    println!("Mapping:");
-    for (k, v) in states {
-        println!("{:?}: {}", v, Expr::print_set(k));
-    }
     gnba
 }

@@ -103,15 +103,7 @@ impl Formula {
     }
 
     pub fn alphabet(&self) -> BTreeSet<Expr> {
-        let mut alphabet = self.root_expr.alphabet();
-        alphabet.append(
-            &mut alphabet
-                .clone()
-                .into_iter()
-                .map(|a| Expr::Not(Box::new(a)))
-                .collect(),
-        );
-        alphabet
+        self.root_expr.alphabet()
     }
 }
 
@@ -187,7 +179,7 @@ impl Expr {
     }
 
     pub fn print_set(set: &BTreeSet<Self>) -> String {
-        format!("({})", set.iter().sorted().join(", "))
+        format!("{{{}}}", set.iter().sorted().join(", "))
     }
 
     fn basic_closure(&self) -> BTreeSet<Self> {
