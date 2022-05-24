@@ -76,12 +76,12 @@ fn main() -> Result<()> {
                 println!("--- Creating GNBA ---");
                 let gnba_f = ltl_to_gnba(&pnf_formula);
                 if *gnba {
-                    println!("\nGNBA:\n{}", gnba_f.hoa());
+                    println!("--- Generated GNBA ---\n{}", gnba_f.hoa());
                 }
                 println!("--- Creating NBA ---");
                 let nba_f = gnba_f.gnba_to_nba();
                 if *nba {
-                    println!("NBA:{}", nba_f.hoa());
+                    println!("--- Generated NBA ---\n{}", nba_f.hoa());
                 }
                 if *satisfiable {
                     println!("--- Checking Satisfiability ---");
