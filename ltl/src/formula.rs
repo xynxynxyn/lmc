@@ -285,18 +285,18 @@ impl Expr {
                     Box::new(Expr::Not(Box::new(rhs.simplify()))),
                 ),
                 Expr::WeakUntil(lhs, rhs) => Expr::Until(
-                    Box::new(Expr::And(
-                        Box::new(lhs.simplify()),
-                        Box::new(Expr::Not(Box::new(rhs.simplify()))),
-                    )),
+                    Box::new(Expr::Not(Box::new(rhs.simplify()))),
                     Box::new(Expr::And(
                         Box::new(Expr::Not(Box::new(lhs.simplify()))),
                         Box::new(Expr::Not(Box::new(rhs.simplify()))),
                     )),
                 ),
-                Expr::StrongRelease(lhs, rhs) => Expr::WeakUntil(
-                    Box::new(Expr::Not(Box::new(lhs.simplify()))),
+                Expr::StrongRelease(lhs, rhs) => Expr::Release(
                     Box::new(Expr::Not(Box::new(rhs.simplify()))),
+                    Box::new(Expr::Or(
+                        Box::new(Expr::Not(Box::new(lhs.simplify()))),
+                        Box::new(Expr::Not(Box::new(rhs.simplify()))),
+                    )),
                 ),
                 Expr::Not(ex) => ex.simplify(),
             },
@@ -440,9 +440,11 @@ impl Expr {
 
     fn fmt_braces(&self) -> String {
         match self {
-            e @ Expr::Atomic(_) | e @ Expr::False | e @ Expr::True | e @ Expr::Not(_) => {
-                e.to_string()
-            }
+            e @ Expr::Atomic(_)
+            | e @ Expr::False
+            | e @ Expr::True
+            | e @ Expr::Not(_)
+            | e @ Expr::Next(_) => e.to_string(),
             e @ _ => format!("({})", e),
         }
     }
@@ -458,8 +460,8 @@ impl Display for Expr {
             Expr::Globally(ex) => format!("G {}", ex.fmt_braces()),
             Expr::Next(ex) => format!("X {}", ex.fmt_braces()),
             Expr::Not(ex) => format!("¬{}", ex.fmt_braces()),
-            Expr::And(lhs, rhs) => format!("{} & {}", lhs.fmt_braces(), rhs.fmt_braces()),
-            Expr::Or(lhs, rhs) => format!("{} | {}", lhs.fmt_braces(), rhs.fmt_braces()),
+            Expr::And(lhs, rhs) => format!("{} ∧ {}", lhs.fmt_braces(), rhs.fmt_braces()),
+            Expr::Or(lhs, rhs) => format!("{} ∨ {}", lhs.fmt_braces(), rhs.fmt_braces()),
             Expr::Until(lhs, rhs) => format!("{} U {}", lhs.fmt_braces(), rhs.fmt_braces()),
             Expr::WeakUntil(lhs, rhs) => format!("{} W {}", lhs.fmt_braces(), rhs.fmt_braces()),
             Expr::Release(lhs, rhs) => format!("{} R {}", lhs.fmt_braces(), rhs.fmt_braces()),
