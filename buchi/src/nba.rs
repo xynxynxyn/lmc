@@ -1,3 +1,4 @@
+use bimap::BiMap;
 use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
@@ -58,17 +59,19 @@ impl Buchi {
                     .join(" & ")
             )
         };
+        let acceptance_sets: BiMap<_, _> = self.accepting_states.iter().enumerate().collect();
+
         // If there are 0 accepting states any run is accepted since this is a GNBA
         let acceptance = if self.accepting_states.len() > 0 {
             format!(
                 "Acceptance: {} {}",
-                self.accepting_states.len(),
-                self.accepting_states
+                acceptance_sets.len(),
+                acceptance_sets
                     .iter()
-                    .sorted_by_key(|s| s.id)
-                    .map(|s| format!("Inf({})", s.id))
+                    .sorted_by_key(|(id, _)| *id)
+                    .map(|(mapped_id, _)| format!("Inf({})", mapped_id))
                     .collect::<Vec<_>>()
-                    .join(" & ")
+                    .join("&")
             )
         } else {
             "Acceptance: 0 t".into()
@@ -97,7 +100,7 @@ impl Buchi {
                         word.id,
                         t.id,
                         if self.accepting_states.contains(&t) {
-                            format!(" {{{}}}", t.id)
+                            format!(" {{{}}}", acceptance_sets.get_by_right(&t).unwrap())
                         } else {
                             "".into()
                         }
@@ -284,7 +287,14 @@ impl Buchi {
         let sccs: Vec<_> = self
             .tarjans_scc()
             .into_iter()
-            .filter(|c| c.len() > 1)
+            .filter(|c| {
+                c.len() > 1 || {
+                    // The single state in the SCC
+                    // Check if it has a connection to itself
+                    let state = c.iter().next().unwrap();
+                    self.states[state].values().flatten().contains(&state)
+                }
+            })
             .collect();
         let accepting: HashSet<_> = self
             .accepting_states
@@ -298,6 +308,13 @@ impl Buchi {
                 return false;
             })
             .collect();
+
+        // If there are no accepting states place an accepting state in every SCC because every infinite run is valid
+        let accepting = if self.accepting_states.is_empty() {
+            sccs.iter().map(|scc| scc.iter().next().unwrap()).collect()
+        } else {
+            accepting
+        };
 
         // If we can reach any of these accepting states we have found a counter example
         let mut visited = HashMap::new();
@@ -369,8 +386,10 @@ impl Buchi {
 
                         let mut new_trace = visited.get(state).unwrap().clone();
                         new_trace.push(word.clone());
-                        visited.insert(successor, new_trace);
-                        queue.push(successor);
+                        if !visited.contains_key(successor) {
+                            queue.push(successor);
+                            visited.insert(successor, new_trace);
+                        }
                     }
                 }
             }
@@ -499,19 +518,25 @@ impl Trace {
 
 impl Display for Trace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if !self.words.is_empty() {
+            write!(
+                f,
+                "{}, ",
+                self.words
+                    .iter()
+                    .map(|w| w.id.as_str())
+                    .collect::<Vec<&str>>()
+                    .join(", ")
+            )?;
+        }
         write!(
             f,
-            "({})({})ω",
-            self.words
-                .iter()
-                .map(|w| w.id.as_str())
-                .collect::<Vec<&str>>()
-                .join(","),
+            "({})ʷ",
             self.omega_words
                 .iter()
                 .map(|w| w.id.as_str())
                 .collect::<Vec<&str>>()
-                .join(",")
+                .join(", ")
         )?;
         Ok(())
     }

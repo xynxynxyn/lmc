@@ -24,24 +24,26 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Analyse the statespace of PetriNets provided by the given files
-    Analyse {
+    Petri {
         /// Number of PNML files which contain PetriNets to be analysed
         files: Vec<OsString>,
     },
-    /// Convert a list of LTL formula to PNF form
-    PNF {
+    /// Operate on LTL formulas
+    LTL {
         /// LTL formulas in prefix notation, for example '& a b' or '| X a G b'
-        formulas: Vec<String>,
-    },
-    /// Transform an LTL formula to a corresponding GNBA
-    GNBA {
-        /// The formula to transform
         formula: String,
-    },
-    /// Transform an LTL formula to a corresponding NBA
-    NBA {
-        /// The formula to transform
-        formula: String,
+        #[clap(short, long)]
+        /// Convert the LTL formulas to PNF form
+        pnf: bool,
+        #[clap(short, long)]
+        satisfiable: bool,
+        /// Check if the provided LTL formula is satisfiable
+        #[clap(short, long)]
+        /// Generate a NBA from the LTL formula in HOA format
+        nba: bool,
+        #[clap(short, long)]
+        /// Generate a GNBA from the LTL formula in HOA format
+        gnba: bool,
     },
 }
 
@@ -49,29 +51,47 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Analyse { files } => {
+        Commands::Petri { files } => {
             println!("-- Mode: Petrinet Analysis --");
             for path in files {
                 println!("-- Analysing PNML file '{}'", path.to_string_lossy());
                 analyse_petri_net(&path)?;
             }
         }
-        Commands::PNF { formulas } => {
-            let pnf = formulas.into_iter().map(|s| Formula::parse(s));
-            for p in pnf.map(|f| f.map(|f| f.pnf())) {
-                match p {
-                    Ok(formula) => println!("{}", formula),
-                    Err(e) => println!("Err: {}", e),
+        Commands::LTL {
+            formula,
+            pnf,
+            satisfiable,
+            nba,
+            gnba,
+        } => {
+            let formula = Formula::parse(formula)?;
+            println!("Formula: '{}'", formula);
+            let pnf_formula = formula.pnf();
+            if *pnf {
+                println!("PNF: '{}'", pnf_formula);
+            }
+
+            if *gnba || *nba || *satisfiable {
+                println!("--- Creating GNBA ---");
+                let gnba_f = ltl_to_gnba(&pnf_formula);
+                if *gnba {
+                    println!("\nGNBA:\n{}", gnba_f.hoa());
+                }
+                println!("--- Creating NBA ---");
+                let nba_f = gnba_f.gnba_to_nba();
+                if *nba {
+                    println!("NBA:{}", nba_f.hoa());
+                }
+                if *satisfiable {
+                    println!("--- Checking Satisfiability ---");
+                    let trace = nba_f.verify();
+                    match trace {
+                        Ok(_) => println!("Satisfiable: False"),
+                        Err(t) => println!("Satisfiable: True\nTrace: {}", t),
+                    }
                 }
             }
-        }
-        Commands::GNBA { formula } => {
-            let formula = Formula::parse(formula)?;
-            println!("{}", ltl_to_gnba(&formula).hoa());
-        }
-        Commands::NBA { formula } => {
-            let formula = Formula::parse(formula)?;
-            println!("{}", ltl_to_gnba(&formula).gnba_to_nba().hoa());
         }
     }
 

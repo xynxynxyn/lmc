@@ -103,7 +103,10 @@ impl Formula {
     }
 
     pub fn alphabet(&self) -> BTreeSet<Expr> {
-        self.root_expr.alphabet()
+        let a = self.root_expr.alphabet();
+        let mut b = a.clone();
+        b.extend(a.into_iter().map(|expr| Expr::Not(Box::new(expr))));
+        b
     }
 }
 
@@ -434,6 +437,15 @@ impl Expr {
                 .map(|(e1, e2)| Expr::StrongRelease(Box::new(e1), Box::new(e2))),
         )(input)
     }
+
+    fn fmt_braces(&self) -> String {
+        match self {
+            e @ Expr::Atomic(_) | e @ Expr::False | e @ Expr::True | e @ Expr::Not(_) => {
+                e.to_string()
+            }
+            e @ _ => format!("({})", e),
+        }
+    }
 }
 
 impl Display for Expr {
@@ -442,16 +454,16 @@ impl Display for Expr {
             Expr::Atomic(s) => s.clone(),
             Expr::True => "true".into(),
             Expr::False => "false".into(),
-            Expr::Finally(ex) => format!("F {}", ex),
-            Expr::Globally(ex) => format!("G {}", ex),
-            Expr::Next(ex) => format!("X {}", ex),
-            Expr::Not(ex) => format!("!{}", ex),
-            Expr::And(lhs, rhs) => format!("& {} {}", lhs, rhs),
-            Expr::Or(lhs, rhs) => format!("| {} {}", lhs, rhs),
-            Expr::Until(lhs, rhs) => format!("U {} {}", lhs, rhs),
-            Expr::WeakUntil(lhs, rhs) => format!("W {} {}", lhs, rhs),
-            Expr::Release(lhs, rhs) => format!("R {} {}", lhs, rhs),
-            Expr::StrongRelease(lhs, rhs) => format!("M {} {}", lhs, rhs),
+            Expr::Finally(ex) => format!("F {}", ex.fmt_braces()),
+            Expr::Globally(ex) => format!("G {}", ex.fmt_braces()),
+            Expr::Next(ex) => format!("X {}", ex.fmt_braces()),
+            Expr::Not(ex) => format!("¬{}", ex.fmt_braces()),
+            Expr::And(lhs, rhs) => format!("{} & {}", lhs.fmt_braces(), rhs.fmt_braces()),
+            Expr::Or(lhs, rhs) => format!("{} | {}", lhs.fmt_braces(), rhs.fmt_braces()),
+            Expr::Until(lhs, rhs) => format!("{} U {}", lhs.fmt_braces(), rhs.fmt_braces()),
+            Expr::WeakUntil(lhs, rhs) => format!("{} W {}", lhs.fmt_braces(), rhs.fmt_braces()),
+            Expr::Release(lhs, rhs) => format!("{} R {}", lhs.fmt_braces(), rhs.fmt_braces()),
+            Expr::StrongRelease(lhs, rhs) => format!("{} M {}", lhs.fmt_braces(), rhs.fmt_braces()),
         };
         write!(f, "{}", symbol)
     }
