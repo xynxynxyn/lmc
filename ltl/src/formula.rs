@@ -36,13 +36,10 @@ pub enum Expr {
 impl Formula {
     pub fn pnf(&self) -> Self {
         let mut root_expr = self.root_expr.simplify();
-        while !root_expr.is_pnf() {
+        loop {
             let new_root = root_expr.simplify();
-            if new_root == root_expr && !new_root.is_pnf() {
-                panic!(
-                    "Could not simplify {:?} any further but is not yet pnf",
-                    new_root
-                );
+            if new_root == root_expr {
+                break;
             }
 
             root_expr = new_root;
@@ -71,7 +68,9 @@ impl Formula {
 
     /// Compute the closure of the given formula (Every subformula and its negation)
     pub fn closure(&self) -> BTreeSet<Expr> {
-        self.root_expr.closure()
+        let mut closure = self.root_expr.closure();
+        closure.insert(Expr::True);
+        closure
     }
 
     pub fn elementary(&self) -> Vec<BTreeSet<Expr>> {
@@ -187,7 +186,7 @@ impl Expr {
 
     fn basic_closure(&self) -> BTreeSet<Self> {
         match self {
-            Expr::True | Expr::False => BTreeSet::from([Expr::True, Expr::False]),
+            Expr::True | Expr::False => BTreeSet::new(),
             e @ Expr::Atomic(_) => BTreeSet::from([e.clone()]),
             Expr::Not(ex) => ex.basic_closure(),
             e @ Expr::Next(ex) => {
@@ -302,8 +301,38 @@ impl Expr {
             },
             e @ Expr::True | e @ Expr::False | e @ Expr::Atomic(_) => e.clone(),
             Expr::Next(e) => Expr::Next(Box::new(e.simplify())),
-            Expr::And(lhs, rhs) => Expr::And(Box::new(lhs.simplify()), Box::new(rhs.simplify())),
-            Expr::Or(lhs, rhs) => Expr::Or(Box::new(lhs.simplify()), Box::new(rhs.simplify())),
+            Expr::And(lhs, rhs) => match (&**lhs, &**rhs) {
+                (Expr::Next(le), Expr::Next(re)) => Expr::Next(Box::new(Expr::And(
+                    Box::new(le.simplify()),
+                    Box::new(re.simplify()),
+                ))),
+                (Expr::False, _) | (_, Expr::False) => Expr::False,
+                (Expr::True, e @ _) | (e @ _, Expr::True) => e.simplify(),
+                (lhs @ _, rhs @ Expr::Not(inner_r)) => {
+                    if lhs == &**inner_r {
+                        Expr::False
+                    } else {
+                        Expr::And(Box::new(lhs.simplify()), Box::new(rhs.simplify()))
+                    }
+                }
+                (lhs @ Expr::Not(inner_l), rhs @ _) => {
+                    if rhs == &**inner_l {
+                        Expr::False
+                    } else {
+                        Expr::And(Box::new(lhs.simplify()), Box::new(rhs.simplify()))
+                    }
+                }
+                (lhs @ _, rhs @ _) => Expr::And(Box::new(lhs.simplify()), Box::new(rhs.simplify())),
+            },
+            Expr::Or(lhs, rhs) => match (&**lhs, &**rhs) {
+                (Expr::Next(le), Expr::Next(re)) => Expr::Next(Box::new(Expr::Or(
+                    Box::new(le.simplify()),
+                    Box::new(re.simplify()),
+                ))),
+                (Expr::True, _) | (_, Expr::True) => Expr::True,
+                (Expr::False, e @ _) | (e @ _, Expr::False) => e.simplify(),
+                (lhs @ _, rhs @ _) => Expr::Or(Box::new(lhs.simplify()), Box::new(rhs.simplify())),
+            },
             Expr::Until(lhs, rhs) => {
                 Expr::Until(Box::new(lhs.simplify()), Box::new(rhs.simplify()))
             }
@@ -324,26 +353,6 @@ impl Expr {
                     Box::new(rhs.simplify()),
                 )),
             ),
-        }
-    }
-
-    fn is_pnf(&self) -> bool {
-        match self {
-            Expr::Not(ex) => {
-                if let Expr::Atomic(_) = **ex {
-                    true
-                } else {
-                    false
-                }
-            }
-            Expr::True | Expr::False | Expr::Atomic(_) => true,
-            Expr::Next(e) => e.is_pnf(),
-            Expr::And(lhs, rhs) => lhs.is_pnf() && rhs.is_pnf(),
-            Expr::Or(lhs, rhs) => lhs.is_pnf() && rhs.is_pnf(),
-            Expr::Until(lhs, rhs) => lhs.is_pnf() && rhs.is_pnf(),
-            Expr::Release(lhs, rhs) => lhs.is_pnf() && rhs.is_pnf(),
-            // Any other symbols are not allowed
-            _ => false,
         }
     }
 
