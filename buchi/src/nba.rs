@@ -284,18 +284,20 @@ impl Buchi {
     /// If there exists a counter example give one back
     pub fn verify(&self) -> Result<(), Trace> {
         // Gather all the final states which are contained in a non trivial SCC
-        let sccs: Vec<_> = self
-            .tarjans_scc()
-            .into_iter()
-            .filter(|c| {
-                c.len() > 1 || {
-                    // The single state in the SCC
-                    // Check if it has a connection to itself
-                    let state = c.iter().next().unwrap();
-                    self.states[state].values().flatten().contains(&state)
-                }
-            })
-            .collect();
+        let sccs: Vec<_> = self.tarjans_scc();
+
+        // If there exists a trivial SCC which is also an accepting state there are no traces
+        // which can satisfy the automaton, thus return Ok(())
+        for c in &sccs {
+            if c.len() == 1 && {
+                let state = c.iter().next().unwrap();
+                self.accepting_states.contains(state)
+                    && !self.states[state].values().flatten().contains(&state)
+            } {
+                return Ok(());
+            }
+        }
+
         let accepting: HashSet<_> = self
             .accepting_states
             .iter()
