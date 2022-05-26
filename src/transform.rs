@@ -26,10 +26,13 @@ pub fn ltl_to_gnba(formula: &Formula) -> Buchi {
     }
 
     // Set accepting states
+    // TODO this should generate a set of sets of states
+    // Then also change the verification procedure
+    // This should be simply just checking that all states in one acceptance set are contained within a single SCC
     for expr in &closure {
-        if let e @ Expr::Until(_, rhs) = expr {
+        if let until @ Expr::Until(_, rhs) = expr {
             for (b_set, state) in &states {
-                if !b_set.contains(e) || b_set.contains(rhs) {
+                if !b_set.contains(until) || b_set.contains(rhs) {
                     gnba.set_accepting_state(*state);
                 }
             }
@@ -37,97 +40,76 @@ pub fn ltl_to_gnba(formula: &Formula) -> Buchi {
     }
 
     // Configure transitions
-    for b in &elementary {
-        let intersection = BTreeSet::from_iter(b.intersection(&alphabet).map(Expr::clone));
+    for s in &elementary {
+        let intersection = BTreeSet::from_iter(s.intersection(&alphabet).cloned());
 
         let label = Expr::print_set(&intersection);
 
+        let mut target_sets = Vec::<BTreeSet<&BTreeSet<Expr>>>::new();
         for expr in &closure {
-            if let next @ Expr::Next(ex) = expr {
-                if b.contains(next) {
-                    for target in elementary.iter().filter(|e| e.contains(ex)) {
-                        gnba.add_transition(
-                            *states.get(b).unwrap(),
-                            *states.get(target).unwrap(),
-                            label.clone(),
-                        );
-                    }
-                } else {
-                    for target in elementary.iter().filter(|e| !e.contains(ex)) {
-                        gnba.add_transition(
-                            *states.get(b).unwrap(),
-                            *states.get(target).unwrap(),
-                            label.clone(),
-                        );
-                    }
-                }
-            } else if let until @ Expr::Until(lhs, rhs) = expr {
-                if b.contains(until) {
-                    if b.contains(rhs) {
-                        // Connect this state to every other state
-                        for target in &elementary {
-                            gnba.add_transition(
-                                *states.get(b).unwrap(),
-                                *states.get(target).unwrap(),
-                                label.clone(),
-                            )
-                        }
-                    } else if b.contains(lhs) {
-                        for target in elementary.iter().filter(|e| e.contains(until)) {
-                            gnba.add_transition(
-                                *states.get(b).unwrap(),
-                                *states.get(target).unwrap(),
-                                label.clone(),
-                            )
-                        }
-                    }
-                } else {
-                    for target in elementary
+            let potential_targets = if let next @ Expr::Next(ex) = expr {
+                elementary
+                    .iter()
+                    .filter(|s_prime| {
+                        (s.contains(next) && s_prime.contains(ex))
+                            || (!s.contains(next) && !s_prime.contains(ex))
+                    })
+                    .collect()
+            } else if let until @ Expr::Until(a, b) = expr {
+                if s.contains(until) {
+                    elementary
                         .iter()
-                        .filter(|e| !b.contains(rhs) && (!b.contains(lhs) || e.contains(until)))
-                    {
-                        gnba.add_transition(
-                            *states.get(b).unwrap(),
-                            *states.get(target).unwrap(),
-                            label.clone(),
-                        )
-                    }
+                        .filter(|s_prime| {
+                            s.contains(b) || (s.contains(a) && s_prime.contains(until))
+                        })
+                        .collect()
+                } else {
+                    elementary
+                        .iter()
+                        .filter(|s_prime| {
+                            !(s.contains(b) || (s.contains(a) && s_prime.contains(until)))
+                        })
+                        .collect()
                 }
-            } else if let release @ Expr::Release(lhs, rhs) = expr {
-                if b.contains(release) {
-                    // The condition is fulfilled, this state can transition to any other
-                    if b.contains(lhs) && b.contains(rhs) {
-                        for target in &elementary {
-                            gnba.add_transition(
-                                *states.get(b).unwrap(),
-                                *states.get(target).unwrap(),
-                                label.clone(),
-                            )
-                        }
-                    // If only the right side is true then all states that also contain this proposition are potential next states
-                    } else if b.contains(rhs) {
-                        for target in elementary.iter().filter(|e| e.contains(release)) {
-                            gnba.add_transition(
-                                *states.get(b).unwrap(),
-                                *states.get(target).unwrap(),
-                                label.clone(),
-                            )
-                        }
-                    }
+            } else if let release @ Expr::Release(a, b) = expr {
+                if s.contains(release) {
+                    elementary
+                        .iter()
+                        .filter(|s_prime| {
+                            (s.contains(a) && s.contains(b))
+                                || (s.contains(b) && s_prime.contains(release))
+                        })
+                        .collect()
                 // If the current state does not contain the release proposition to the opposite
                 } else {
-                    for target in elementary.iter().filter(|e| {
-                        !(b.contains(lhs) && b.contains(rhs))
-                            && (b.contains(rhs) || e.contains(release))
-                    }) {
-                        gnba.add_transition(
-                            *states.get(b).unwrap(),
-                            *states.get(target).unwrap(),
-                            label.clone(),
-                        )
-                    }
+                    elementary
+                        .iter()
+                        .filter(|s_prime| {
+                            !((s.contains(a) && s.contains(b))
+                                || (s.contains(b) && s_prime.contains(release)))
+                        })
+                        .collect()
                 }
-            }
+            } else {
+                continue;
+            };
+            target_sets.push(potential_targets);
+        }
+
+        let mut all_states: BTreeSet<_> = elementary.iter().collect();
+        for t in &target_sets {
+            all_states = all_states.intersection(t).cloned().collect();
+        }
+
+        let intersection = all_states;
+
+        // Add the states
+        for t in intersection {
+            gnba.add_transition(
+                *states.get(s).unwrap(),
+                *states.get(t).unwrap(),
+                label.clone(),
+            );
         }
     }
 

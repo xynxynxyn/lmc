@@ -20,8 +20,8 @@ pub struct Formula {
 pub enum Expr {
     True,
     False,
-    Atomic(String),
     Not(Box<Expr>),
+    Atomic(String),
     Or(Box<Expr>, Box<Expr>),
     And(Box<Expr>, Box<Expr>),
     Next(Box<Expr>),
@@ -35,17 +35,9 @@ pub enum Expr {
 
 impl Formula {
     pub fn pnf(&self) -> Self {
-        let mut root_expr = self.root_expr.simplify();
-        loop {
-            let new_root = root_expr.simplify();
-            if new_root == root_expr {
-                break;
-            }
-
-            root_expr = new_root;
+        Formula {
+            root_expr: self.root_expr.pnf(),
         }
-
-        Formula { root_expr }
     }
 
     pub fn parse(input: &str) -> Result<Self, crate::error::Error> {
@@ -73,7 +65,7 @@ impl Formula {
 
     pub fn elementary(&self) -> Vec<BTreeSet<Expr>> {
         // All non negated subformulae
-        let closure = self.root_expr.basic_closure();
+        let closure = self.root_expr.subformula();
         let elementary = closure
             .clone()
             .into_iter()
@@ -81,6 +73,9 @@ impl Formula {
             .map(|s| {
                 let mut s: BTreeSet<_> = s.into_iter().collect();
                 for f in &closure {
+                    if let Expr::False | Expr::True = f {
+                        continue;
+                    }
                     if !s.contains(f) {
                         s.insert(Expr::Not(Box::new(f.clone())));
                     }
@@ -102,15 +97,22 @@ impl Formula {
     pub fn alphabet(&self) -> BTreeSet<Expr> {
         let a = self.root_expr.alphabet();
         let mut b = a.clone();
-        b.extend(a.into_iter().map(|expr| Expr::Not(Box::new(expr))));
+        b.extend(
+            a.into_iter()
+                .filter(|expr| match expr {
+                    Expr::True | Expr::False => false,
+                    _ => true,
+                })
+                .map(|expr| Expr::Not(Box::new(expr))),
+        );
         b
     }
 }
 
 fn satisfies(set: &BTreeSet<Expr>, expr: &Expr) -> bool {
-    let exists = set.contains(expr) || set.contains(&Expr::Not(Box::new(expr.clone())));
+    let exists = set.contains(expr) || set.contains(&expr.negated());
     let satisfies = match expr {
-        e @ Expr::False => !set.contains(e),
+        e @ Expr::False => return !set.contains(e),
         e @ Expr::True => set.contains(e),
         e @ Expr::And(lhs, rhs) => {
             (set.contains(e) && set.contains(lhs) && set.contains(rhs))
@@ -122,13 +124,11 @@ fn satisfies(set: &BTreeSet<Expr>, expr: &Expr) -> bool {
         }
         e @ Expr::Until(lhs, rhs) => {
             (!set.contains(rhs) || set.contains(e))
-                && (!(set.contains(e) && set.contains(&Expr::Not(Box::new(*rhs.clone()))))
-                    || set.contains(lhs))
+                && (!(set.contains(e) && set.contains(&rhs.negated())) || set.contains(lhs))
         }
         e @ Expr::Release(lhs, rhs) => {
             (!(set.contains(lhs) && set.contains(rhs)) || set.contains(e))
-                && (!(set.contains(e) && set.contains(&Expr::Not(Box::new(*lhs.clone()))))
-                    || set.contains(rhs))
+                && (!(set.contains(e) && set.contains(&lhs.negated())) || set.contains(rhs))
         }
         _ => true,
     };
@@ -142,9 +142,19 @@ impl Display for Formula {
 }
 
 impl Expr {
+    fn negated(&self) -> Self {
+        match self {
+            Expr::True => Expr::False,
+            Expr::False => Expr::True,
+            Expr::Not(e) => *e.clone(),
+            _ => Expr::Not(Box::new(self.clone())),
+        }
+    }
+
     pub fn alphabet(&self) -> BTreeSet<Expr> {
         match self {
-            e @ Expr::True | e @ Expr::False | e @ Expr::Atomic(_) => BTreeSet::from([e.clone()]),
+            Expr::True | Expr::False => BTreeSet::new(),
+            e @ Expr::Atomic(_) => BTreeSet::from([e.clone()]),
             Expr::Next(e) => e.alphabet(),
             Expr::Globally(e) => e.alphabet(),
             Expr::Finally(e) => e.alphabet(),
@@ -182,71 +192,82 @@ impl Expr {
         }
     }
 
+    fn pnf(&self) -> Self {
+        let mut root_expr = self.simplify();
+        loop {
+            let new_root = root_expr.simplify();
+            if new_root == root_expr {
+                break;
+            }
+            root_expr = new_root;
+        }
+        root_expr
+    }
+
     pub fn print_set(set: &BTreeSet<Self>) -> String {
         format!("{{{}}}", set.iter().sorted().join(", "))
     }
 
-    fn basic_closure(&self) -> BTreeSet<Self> {
+    fn subformula(&self) -> BTreeSet<Self> {
         match self {
-            e @ Expr::True | e @ Expr::False => BTreeSet::from([e.clone()]),
-            e @ Expr::Atomic(_) => BTreeSet::from([e.clone()]),
-            Expr::Not(ex) => ex.basic_closure(),
+            e @ Expr::False | e @ Expr::True | e @ Expr::Atomic(_) => BTreeSet::from([e.clone()]),
+            Expr::Not(ex) => ex.subformula(),
             e @ Expr::Next(ex) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(ex.basic_closure());
+                closure.extend(ex.subformula());
                 closure
             }
             e @ Expr::Globally(ex) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(ex.basic_closure());
+                closure.extend(ex.subformula());
                 closure
             }
             e @ Expr::Finally(ex) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(ex.basic_closure());
+                closure.extend(ex.subformula());
                 closure
             }
             e @ Expr::And(lhs, rhs) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(lhs.basic_closure());
-                closure.extend(rhs.basic_closure());
+                closure.extend(lhs.subformula());
+                closure.extend(rhs.subformula());
                 closure
             }
             e @ Expr::Or(lhs, rhs) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(lhs.basic_closure());
-                closure.extend(rhs.basic_closure());
+                closure.extend(lhs.subformula());
+                closure.extend(rhs.subformula());
                 closure
             }
             e @ Expr::Until(lhs, rhs) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(lhs.basic_closure());
-                closure.extend(rhs.basic_closure());
+                closure.extend(lhs.subformula());
+                closure.extend(rhs.subformula());
                 closure
             }
             e @ Expr::WeakUntil(lhs, rhs) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(lhs.basic_closure());
-                closure.extend(rhs.basic_closure());
+                closure.extend(lhs.subformula());
+                closure.extend(rhs.subformula());
                 closure
             }
             e @ Expr::Release(lhs, rhs) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(lhs.basic_closure());
-                closure.extend(rhs.basic_closure());
+                closure.extend(lhs.subformula());
+                closure.extend(rhs.subformula());
                 closure
             }
             e @ Expr::StrongRelease(lhs, rhs) => {
                 let mut closure = BTreeSet::from([e.clone()]);
-                closure.extend(lhs.basic_closure());
-                closure.extend(rhs.basic_closure());
+                closure.extend(lhs.subformula());
+                closure.extend(rhs.subformula());
                 closure
             }
         }
     }
 
     fn closure(&self) -> BTreeSet<Self> {
-        let mut closure = self.basic_closure();
+        let mut closure = self.subformula();
         let negated_closure = closure
             .clone()
             .into_iter()
