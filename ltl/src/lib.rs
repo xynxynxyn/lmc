@@ -98,12 +98,13 @@ mod tests {
         ]);
 
         for (l, r) in values {
-            assert_eq!(l.closure(), r);
+            assert_eq!(l.closure(), r, "input: {}", l);
         }
     }
 
     #[test]
     fn elementary1() {
+        let formula = Formula::parse("& a b").unwrap();
         let elementary_sets = Formula::parse("& a b").unwrap().elementary();
         let should_contain = vec![
             BTreeSet::from([

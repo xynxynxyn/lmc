@@ -75,20 +75,24 @@ fn main() -> Result<()> {
             if *gnba || *nba || *satisfiable {
                 println!("--- Creating GNBA ---");
                 let gnba_f = ltl_to_gnba(&pnf_formula);
+
                 if *gnba {
                     println!("--- Generated GNBA ---\n{}", gnba_f.hoa());
                 }
-                println!("--- Creating NBA ---");
-                let nba_f = gnba_f.gnba_to_nba();
-                if *nba {
-                    println!("--- Generated NBA ---\n{}", nba_f.hoa());
-                }
-                if *satisfiable {
-                    println!("--- Checking Satisfiability ---");
-                    let trace = nba_f.verify();
-                    match trace {
-                        Ok(_) => println!("Satisfiable: False"),
-                        Err(t) => println!("Satisfiable: True\nTrace: {}", t),
+
+                if *nba || *satisfiable {
+                    println!("--- Creating NBA ---");
+                    let nba_f = gnba_f.gnba_to_nba();
+                    if *nba {
+                        println!("--- Generated NBA ---\n{}", nba_f.hoa());
+                    }
+                    if *satisfiable {
+                        println!("--- Checking Satisfiability ---");
+                        let trace = nba_f.verify();
+                        match trace {
+                            Ok(_) => println!("Satisfiable: False"),
+                            Err(t) => println!("Satisfiable: True\nTrace: {}", t),
+                        }
                     }
                 }
             }

@@ -68,9 +68,7 @@ impl Formula {
 
     /// Compute the closure of the given formula (Every subformula and its negation)
     pub fn closure(&self) -> BTreeSet<Expr> {
-        let mut closure = self.root_expr.closure();
-        closure.insert(Expr::True);
-        closure
+        self.root_expr.closure()
     }
 
     pub fn elementary(&self) -> Vec<BTreeSet<Expr>> {
@@ -90,7 +88,7 @@ impl Formula {
                 s
             })
             .filter(|s| {
-                for e in &self.closure() {
+                for e in &closure {
                     if !satisfies(s, e) {
                         return false;
                     }
@@ -110,27 +108,31 @@ impl Formula {
 }
 
 fn satisfies(set: &BTreeSet<Expr>, expr: &Expr) -> bool {
-    match expr {
-        //not_e @ Expr::Not(e) => {
-        //    let mut new_set = set.clone();
-        //    new_set.insert(*e.clone());
-        //    new_set.remove(not_e);
-        //    !satisfies(&new_set, &*e)
-        //}
+    let exists = set.contains(expr) || set.contains(&Expr::Not(Box::new(expr.clone())));
+    let satisfies = match expr {
+        e @ Expr::False => !set.contains(e),
+        e @ Expr::True => set.contains(e),
         e @ Expr::And(lhs, rhs) => {
-            !((set.contains(e) && (!set.contains(lhs) || !set.contains(rhs)))
-                || (set.contains(lhs) && set.contains(rhs) && !set.contains(e)))
+            (set.contains(e) && set.contains(lhs) && set.contains(rhs))
+                || (!set.contains(e) && !(set.contains(lhs) && set.contains(rhs)))
         }
         e @ Expr::Or(lhs, rhs) => {
-            !((set.contains(e) && !set.contains(lhs) && !set.contains(rhs))
-                || ((set.contains(lhs) || set.contains(rhs)) && !set.contains(e)))
+            (set.contains(e) && (set.contains(lhs) || set.contains(rhs)))
+                || (!set.contains(e) && !set.contains(lhs) && !set.contains(rhs))
         }
         e @ Expr::Until(lhs, rhs) => {
-            !(set.contains(rhs) && !set.contains(e)
-                || (set.contains(e) && !set.contains(rhs) && !set.contains(lhs)))
+            (!set.contains(rhs) || set.contains(e))
+                && (!(set.contains(e) && set.contains(&Expr::Not(Box::new(*rhs.clone()))))
+                    || set.contains(lhs))
+        }
+        e @ Expr::Release(lhs, rhs) => {
+            (!(set.contains(lhs) && set.contains(rhs)) || set.contains(e))
+                && (!(set.contains(e) && set.contains(&Expr::Not(Box::new(*lhs.clone()))))
+                    || set.contains(rhs))
         }
         _ => true,
-    }
+    };
+    exists && satisfies
 }
 
 impl Display for Formula {
@@ -186,7 +188,7 @@ impl Expr {
 
     fn basic_closure(&self) -> BTreeSet<Self> {
         match self {
-            Expr::True | Expr::False => BTreeSet::new(),
+            e @ Expr::True | e @ Expr::False => BTreeSet::from([e.clone()]),
             e @ Expr::Atomic(_) => BTreeSet::from([e.clone()]),
             Expr::Not(ex) => ex.basic_closure(),
             e @ Expr::Next(ex) => {
