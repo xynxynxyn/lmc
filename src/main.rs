@@ -2,7 +2,8 @@ mod transform;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ltl::formula::Formula;
+use itertools::Itertools;
+use ltl::formula::{Expr, Formula};
 use std::ffi::OsString;
 use std::{
     collections::{HashSet, VecDeque},
@@ -70,6 +71,10 @@ fn main() -> Result<()> {
             let pnf_formula = formula.pnf();
             if *pnf {
                 println!("PNF: '{}'", pnf_formula);
+                println!("Consistent Subsets:");
+                for s in pnf_formula.elementary().iter().sorted() {
+                    println!("{}", Expr::print_set(&s));
+                }
             }
 
             if *gnba || *nba || *satisfiable {

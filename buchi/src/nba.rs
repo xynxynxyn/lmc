@@ -19,7 +19,6 @@ pub struct Buchi {
     // A State and it's transitions
     // These transitions take a word as input and return a set of new states
     states: HashMap<State, HashMap<Word, HashSet<State>>>,
-    accepting_states: HashSet<State>,
     accepting_sets: HashSet<BTreeSet<State>>,
     initial_states: HashSet<State>,
     labels: HashMap<State, String>,
@@ -128,7 +127,6 @@ impl Buchi {
             states: HashMap::new(),
             labels: HashMap::new(),
             accepting_sets: HashSet::new(),
-            accepting_states: HashSet::new(),
             initial_states: HashSet::new(),
             size: 0,
         }
@@ -167,16 +165,6 @@ impl Buchi {
         self.initial_states.extend(states);
     }
 
-    /// Make the provided state an accepting state
-    pub fn set_accepting_state(&mut self, state: State) {
-        self.accepting_states.insert(state);
-    }
-
-    /// Make the provided states accepting states
-    pub fn set_accepting_states(&mut self, states: &[State]) {
-        self.accepting_states.extend(states);
-    }
-
     /// Add a transition from Source to Target with label Word.
     /// The Word can be any kind of string or a manually constructed Word, which should then probably be cloned
     /// since Word does not implement Copy.
@@ -201,11 +189,6 @@ impl Buchi {
     /// Get a set of all states that exist in the automaton. It does not matter whether they're reachable or not.
     pub fn states(&self) -> HashSet<State> {
         self.states.keys().map(|s| s.clone()).collect()
-    }
-
-    /// A set of accepting states
-    pub fn accepting_states(&self) -> &HashSet<State> {
-        &self.accepting_states
     }
 
     pub fn accepting_sets(&self) -> &HashSet<BTreeSet<State>> {
@@ -297,39 +280,52 @@ impl Buchi {
         }
     }
 
+    fn scc_is_trivial(&self, scc: &HashSet<State>) -> bool {
+        scc.len() == 1 && {
+            let transitions = self.states.get(scc.iter().next().unwrap()).unwrap();
+            !transitions.values().contains(scc)
+        }
+    }
+
     /// Verify that there exists no trace which satisfies the automaton
     /// If there exists a counter example give one back
     pub fn verify(&self) -> Result<(), Trace> {
+        // TODO adjust this for acceptance sets instead of a single acceptance set of states
         // Gather all the final states which are contained in a non trivial SCC
-        let sccs: Vec<_> = self.tarjans_scc();
+        let sccs: Vec<_> = self
+            .tarjans_scc()
+            .into_iter()
+            .filter(|c| !self.scc_is_trivial(c))
+            .collect();
 
-        // If there exists a trivial SCC which is also an accepting state there are no traces
-        // which can satisfy the automaton, thus return Ok(())
-        for c in &sccs {
-            if c.len() == 1 && {
-                let state = c.iter().next().unwrap();
-                self.accepting_states.contains(state)
-                    && !self.states[state].values().flatten().contains(&state)
-            } {
+        // If there exists an accepting set where no state is in a non trivial SCC then there is no trace that satisfies
+        for set in &self.accepting_sets {
+            if set
+                .iter()
+                .any(|f| sccs.iter().all(|component| !component.contains(f)))
+            {
                 return Ok(());
             }
         }
 
-        let accepting: HashSet<_> = self
-            .accepting_states
-            .iter()
-            .filter(|&s| {
-                for c in &sccs {
-                    if c.contains(s) {
-                        return true;
-                    }
-                }
-                return false;
-            })
+        // If there are no accepting sets and there is no non trivial SCC then there also cannot be a trace
+        if sccs.iter().all(|c| self.scc_is_trivial(c)) {
+            return Ok(());
+        }
+
+        let nba = self.gnba_to_nba();
+        let sccs: Vec<_> = nba
+            .tarjans_scc()
+            .into_iter()
+            .filter(|c| !nba.scc_is_trivial(c))
             .collect();
 
+        // We already know that the accepting set is part of an SCC, no need to check
+        let accepting: HashSet<_> = nba.accepting_sets.iter().flatten().collect();
+
         // If there are no accepting states place an accepting state in every SCC because every infinite run is valid
-        let accepting = if self.accepting_states.is_empty() {
+        // But if the accepting sets are empty simply place an accepting state in every SCC
+        let accepting = if accepting.is_empty() {
             sccs.iter().map(|scc| scc.iter().next().unwrap()).collect()
         } else {
             accepting
@@ -338,7 +334,7 @@ impl Buchi {
         // If we can reach any of these accepting states we have found a counter example
         let mut visited = HashMap::new();
 
-        for initial_state in &self.initial_states {
+        for initial_state in &nba.initial_states {
             // Do DFS for every initial_state in the list
             // Except when we already visited it
             if visited.contains_key(initial_state) {
@@ -358,12 +354,12 @@ impl Buchi {
                         .collect::<Vec<_>>()[0];
 
                     let trace = visited.remove(state).unwrap();
-                    let omega_trace = self.constrained_cycle_searcher(state, scc).unwrap();
+                    let omega_trace = nba.constrained_cycle_searcher(state, scc).unwrap();
 
                     return Err(Trace::new(trace, omega_trace));
                 }
 
-                for transition in self.states.get(state) {
+                for transition in nba.states.get(state) {
                     for (word, successors) in transition {
                         for successor in successors {
                             if !visited.contains_key(successor) {
@@ -418,9 +414,8 @@ impl Buchi {
     }
 
     pub fn gnba_to_nba(&self) -> Self {
-        println!("GBA with size {}", self.size);
         // If the accepting states are empty or there's only one it doesn't matter what you do, just return the whole gnba since it's already an nba
-        if self.accepting_sets.is_empty() {
+        if self.accepting_sets.len() <= 1 {
             return self.clone();
         }
         // Clone the accepting states into a vec for deterministic ordering
@@ -514,10 +509,10 @@ impl Display for Buchi {
         )?;
         writeln!(
             f,
-            "Accepting States: ({})",
-            self.accepting_states
+            "Accepting Sets: ({})",
+            self.accepting_sets()
                 .iter()
-                .map(|s| format!("s{}", s.id))
+                .map(|s| format!("{{{}}}", s.iter().map(|a| format!("s{}", a.id)).join(", ")))
                 .collect::<Vec<_>>()
                 .join(", ")
         )?;

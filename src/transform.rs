@@ -100,6 +100,7 @@ pub fn ltl_to_gnba(formula: &Formula) -> Buchi {
             } else {
                 continue;
             };
+
             target_sets.push(potential_targets);
         }
 

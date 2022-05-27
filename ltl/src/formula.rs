@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::{collections::BTreeSet, fmt::Display};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Display};
 
 use nom::{
     branch::alt,
@@ -16,19 +16,19 @@ pub struct Formula {
     pub root_expr: Expr,
 }
 
-#[derive(Eq, PartialEq, Clone, Debug, Hash, PartialOrd, Ord)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
 pub enum Expr {
     True,
     False,
     Not(Box<Expr>),
     Atomic(String),
-    Or(Box<Expr>, Box<Expr>),
-    And(Box<Expr>, Box<Expr>),
     Next(Box<Expr>),
-    Until(Box<Expr>, Box<Expr>),
-    WeakUntil(Box<Expr>, Box<Expr>),
     Globally(Box<Expr>),
     Finally(Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
+    And(Box<Expr>, Box<Expr>),
+    Until(Box<Expr>, Box<Expr>),
+    WeakUntil(Box<Expr>, Box<Expr>),
     Release(Box<Expr>, Box<Expr>),
     StrongRelease(Box<Expr>, Box<Expr>),
 }
@@ -205,7 +205,10 @@ impl Expr {
     }
 
     pub fn print_set(set: &BTreeSet<Self>) -> String {
-        format!("{{{}}}", set.iter().sorted().join(", "))
+        format!(
+            "{{{}}}",
+            set.iter().sorted_by(|r, s| Expr::cmp(r, s)).join(", ")
+        )
     }
 
     fn subformula(&self) -> BTreeSet<Self> {
@@ -478,6 +481,131 @@ impl Expr {
             | e @ Expr::Not(_)
             | e @ Expr::Next(_) => e.to_string(),
             e @ _ => format!("({})", e),
+        }
+    }
+
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Expr::True | Expr::False, Expr::True | Expr::False) => Ordering::Equal,
+            (Expr::True | Expr::False, _) => Ordering::Less,
+
+            (Expr::Not(a), Expr::Not(b)) => a.cmp(b),
+            (Expr::Not(a), b @ _) => {
+                if let Ordering::Equal = a.as_ref().cmp(b) {
+                    Ordering::Greater
+                } else {
+                    a.as_ref().cmp(b)
+                }
+            }
+            (a @ _, Expr::Not(b)) => {
+                if let Ordering::Equal = a.cmp(b) {
+                    Ordering::Less
+                } else {
+                    a.cmp(b)
+                }
+            }
+
+            (Expr::Atomic(a), Expr::Atomic(b)) => a.cmp(b),
+            (Expr::Atomic(_), Expr::True | Expr::False) => Ordering::Greater,
+            (Expr::Atomic(_), _) => Ordering::Less,
+
+            (Expr::Next(a), Expr::Next(b)) => a.cmp(b),
+            (Expr::Next(_), Expr::True | Expr::False | Expr::Atomic(_)) => Ordering::Greater,
+            (Expr::Next(_), _) => Ordering::Less,
+
+            (Expr::Globally(a), Expr::Globally(b)) => a.cmp(b),
+            (Expr::Globally(_), Expr::True | Expr::False | Expr::Atomic(_) | Expr::Next(_)) => {
+                Ordering::Greater
+            }
+            (Expr::Globally(_), _) => Ordering::Less,
+
+            (Expr::Finally(a), Expr::Finally(b)) => a.cmp(b),
+            (
+                Expr::Finally(_),
+                Expr::True | Expr::False | Expr::Atomic(_) | Expr::Next(_) | Expr::Globally(_),
+            ) => Ordering::Greater,
+            (Expr::Finally(_), _) => Ordering::Less,
+
+            (Expr::Or(a1, a2), Expr::Or(b1, b2)) => {
+                if let Ordering::Equal = a1.cmp(b1) {
+                    a2.cmp(b2)
+                } else {
+                    a1.cmp(b2)
+                }
+            }
+            (
+                Expr::Or(_, _),
+                Expr::True
+                | Expr::False
+                | Expr::Atomic(_)
+                | Expr::Next(_)
+                | Expr::Globally(_)
+                | Expr::Finally(_),
+            ) => Ordering::Greater,
+            (Expr::Or(_, _), _) => Ordering::Less,
+
+            (Expr::And(a1, a2), Expr::And(b1, b2)) => {
+                if let Ordering::Equal = a1.cmp(b1) {
+                    a2.cmp(b2)
+                } else {
+                    a1.cmp(b2)
+                }
+            }
+            (
+                Expr::And(_, _),
+                Expr::True
+                | Expr::False
+                | Expr::Atomic(_)
+                | Expr::Next(_)
+                | Expr::Globally(_)
+                | Expr::Finally(_)
+                | Expr::Or(_, _),
+            ) => Ordering::Greater,
+            (Expr::And(_, _), _) => Ordering::Less,
+
+            (Expr::Until(a1, a2), Expr::Until(b1, b2)) => {
+                if let Ordering::Equal = a1.cmp(b1) {
+                    a2.cmp(b2)
+                } else {
+                    a1.cmp(b2)
+                }
+            }
+            (
+                Expr::Until(_, _),
+                Expr::WeakUntil(_, _) | Expr::Release(_, _) | Expr::StrongRelease(_, _),
+            ) => Ordering::Less,
+            (Expr::Until(_, _), _) => Ordering::Greater,
+
+            (Expr::WeakUntil(a1, a2), Expr::WeakUntil(b1, b2)) => {
+                if let Ordering::Equal = a1.cmp(b1) {
+                    a2.cmp(b2)
+                } else {
+                    a1.cmp(b2)
+                }
+            }
+            (Expr::WeakUntil(_, _), Expr::Release(_, _) | Expr::StrongRelease(_, _)) => {
+                Ordering::Less
+            }
+            (Expr::WeakUntil(_, _), _) => Ordering::Greater,
+
+            (Expr::Release(a1, a2), Expr::Release(b1, b2)) => {
+                if let Ordering::Equal = a1.cmp(b1) {
+                    a2.cmp(b2)
+                } else {
+                    a1.cmp(b2)
+                }
+            }
+            (Expr::Release(_, _), Expr::StrongRelease(_, _)) => Ordering::Less,
+            (Expr::Release(_, _), _) => Ordering::Greater,
+
+            (Expr::StrongRelease(a1, a2), Expr::StrongRelease(b1, b2)) => {
+                if let Ordering::Equal = a1.cmp(b1) {
+                    a2.cmp(b2)
+                } else {
+                    a1.cmp(b2)
+                }
+            }
+            (Expr::StrongRelease(_, _), _) => Ordering::Greater,
         }
     }
 }

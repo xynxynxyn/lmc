@@ -186,6 +186,7 @@ dependencies = [
  "anyhow",
  "buchi",
  "clap",
+ "itertools",
  "ltl",
  "petri",
 ]
