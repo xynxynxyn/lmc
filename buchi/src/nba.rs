@@ -1,7 +1,7 @@
 use bimap::BiMap;
 use itertools::Itertools;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     fmt::Display,
 };
 // A buchi automaton consists of 5 elements:
@@ -20,6 +20,7 @@ pub struct Buchi {
     // These transitions take a word as input and return a set of new states
     states: HashMap<State, HashMap<Word, HashSet<State>>>,
     accepting_states: HashSet<State>,
+    accepting_sets: HashSet<BTreeSet<State>>,
     initial_states: HashSet<State>,
     labels: HashMap<State, String>,
     size: usize,
@@ -30,7 +31,7 @@ pub struct Word {
     pub id: String,
 }
 
-#[derive(Debug, Eq, Clone, Copy, Hash, PartialEq)]
+#[derive(Debug, Eq, Clone, Copy, Hash, PartialEq, PartialOrd, Ord)]
 pub struct State {
     id: usize,
 }
@@ -59,10 +60,10 @@ impl Buchi {
                     .join(" & ")
             )
         };
-        let acceptance_sets: BiMap<_, _> = self.accepting_states.iter().enumerate().collect();
+        let acceptance_sets: BiMap<_, _> = self.accepting_sets.iter().enumerate().collect();
 
         // If there are 0 accepting states any run is accepted since this is a GNBA
-        let acceptance = if self.accepting_states.len() > 0 {
+        let acceptance = if acceptance_sets.len() > 0 {
             format!(
                 "Acceptance: {} {}",
                 acceptance_sets.len(),
@@ -95,16 +96,22 @@ impl Buchi {
             let mut edges = vec![];
             for (word, targets) in transitions {
                 for t in targets {
-                    edges.push(format!(
-                        "\n  {} {}{}",
-                        word.id,
-                        t.id,
-                        if self.accepting_states.contains(&t) {
-                            format!(" {{{}}}", acceptance_sets.get_by_right(&t).unwrap())
-                        } else {
-                            "".into()
-                        }
-                    ))
+                    let acceptance_ids: Vec<_> = acceptance_sets
+                        .iter()
+                        .filter_map(|(i, s)| {
+                            if s.contains(&t) {
+                                Some(i.to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    let id = if acceptance_ids.is_empty() {
+                        "".into()
+                    } else {
+                        format!(" {{{}}}", acceptance_ids.join(" "))
+                    };
+                    edges.push(format!("\n  {} {}{}", word.id, t.id, id));
                 }
             }
 
@@ -120,10 +127,16 @@ impl Buchi {
         Buchi {
             states: HashMap::new(),
             labels: HashMap::new(),
+            accepting_sets: HashSet::new(),
             accepting_states: HashSet::new(),
             initial_states: HashSet::new(),
             size: 0,
         }
+    }
+
+    pub fn add_accepting_set(&mut self, set: impl IntoIterator<Item = State>) {
+        self.accepting_sets
+            .insert(BTreeSet::from_iter(set.into_iter()));
     }
 
     /// Generate a new state. The return value is used to construct transitions and set the initial/accepting states
@@ -193,6 +206,10 @@ impl Buchi {
     /// A set of accepting states
     pub fn accepting_states(&self) -> &HashSet<State> {
         &self.accepting_states
+    }
+
+    pub fn accepting_sets(&self) -> &HashSet<BTreeSet<State>> {
+        &self.accepting_sets
     }
 
     /// Returns a set of strongly connected components using Tarjan's algorithm
@@ -401,16 +418,15 @@ impl Buchi {
     }
 
     pub fn gnba_to_nba(&self) -> Self {
+        println!("GBA with size {}", self.size);
         // If the accepting states are empty or there's only one it doesn't matter what you do, just return the whole gnba since it's already an nba
-        if self.accepting_states.len() <= 1 {
+        if self.accepting_sets.is_empty() {
             return self.clone();
         }
         // Clone the accepting states into a vec for deterministic ordering
-        let accepting_states: Vec<_> = self.accepting_states.clone().into_iter().collect();
-
         let mut nba = Buchi::new();
-        // Duplicate the statespace
-        for (i, accepting) in accepting_states.iter().enumerate() {
+
+        for (i, accepting_set) in self.accepting_sets.iter().enumerate() {
             // Create a copy of the statespace for every accepting state and rename them to s0_0, s0_1, s0_2 etc for each iteration
             let mut new_states: HashMap<State, HashMap<Word, HashSet<State>>> = self
                 .states
@@ -431,38 +447,55 @@ impl Buchi {
                     (k, v)
                 })
                 .collect();
-            // Map the transitions of the current accepting state to point towards the next one (potentially the first)
-            let next_index = (i + 1) % accepting_states.len();
-            new_states
-                .entry(State {
-                    id: accepting.id + self.size * i,
-                })
-                .and_modify(|transitions| {
-                    for targets in transitions.values_mut() {
-                        *targets = targets
-                            .iter()
-                            .map(|_| State {
-                                id: accepting.id + next_index * self.size,
-                            })
-                            .collect();
-                    }
-                });
+
+            // Add new labels
+            for (new, _) in &new_states {
+                nba.labels.insert(
+                    *new,
+                    self.labels
+                        .get(&State {
+                            id: new.id % self.size,
+                        })
+                        .unwrap()
+                        .clone(),
+                );
+            }
+
+            // Map the transitions of the current accepting states to point towards the next one (potentially the first)
+            for accepting in accepting_set {
+                new_states
+                    .entry(State {
+                        id: accepting.id + self.size * i,
+                    })
+                    .and_modify(|transitions| {
+                        for targets in transitions.values_mut() {
+                            *targets = targets
+                                .iter()
+                                .map(|target| State {
+                                    id: (target.id + self.size)
+                                        % (self.size * self.accepting_sets.len()),
+                                })
+                                .collect();
+                        }
+                    });
+            }
 
             nba.states.extend(new_states);
-            // Set the last accepting state
-            if i == accepting_states.len() - 1 {
-                nba.set_accepting_state(State {
-                    id: accepting.id + self.size * i,
-                })
+
+            // Make the last set accepting
+            if i == self.accepting_sets.len() - 1 {
+                nba.add_accepting_set(accepting_set.iter().map(|s| State {
+                    id: s.id + self.size * i,
+                }));
             }
         }
-        // Copy the initial states
+
         for initial_state in &self.initial_states {
             nba.set_initial_state(*initial_state)
         }
 
         // Update the size of the nba
-        nba.size += self.size * self.accepting_states.len();
+        nba.size += self.size * self.accepting_sets.len();
 
         nba
     }

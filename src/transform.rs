@@ -1,6 +1,6 @@
 // Transform an LTL formula to a GNBA/NBA
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use buchi::nba::Buchi;
 use ltl::formula::{Expr, Formula};
@@ -31,11 +31,18 @@ pub fn ltl_to_gnba(formula: &Formula) -> Buchi {
     // This should be simply just checking that all states in one acceptance set are contained within a single SCC
     for expr in &closure {
         if let until @ Expr::Until(_, rhs) = expr {
-            for (b_set, state) in &states {
-                if !b_set.contains(until) || b_set.contains(rhs) {
-                    gnba.set_accepting_state(*state);
-                }
-            }
+            let accepting_set = states
+                .iter()
+                .filter_map(|(b_set, state)| {
+                    if !b_set.contains(until) || b_set.contains(rhs) {
+                        Some(state)
+                    } else {
+                        None
+                    }
+                })
+                .cloned()
+                .collect::<HashSet<_>>();
+            gnba.add_accepting_set(accepting_set.into_iter());
         }
     }
 
