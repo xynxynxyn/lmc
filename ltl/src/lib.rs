@@ -104,7 +104,6 @@ mod tests {
 
     #[test]
     fn elementary1() {
-        let formula = Formula::parse("& a b").unwrap();
         let elementary_sets = Formula::parse("& a b").unwrap().elementary();
         let should_contain = vec![
             BTreeSet::from([

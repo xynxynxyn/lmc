@@ -381,98 +381,10 @@ impl Expr {
             ),
         }
     }
+}
 
-    fn parse(input: &str) -> IResult<&str, Self> {
-        alt((
-            Expr::parse_false,
-            Expr::parse_true,
-            Expr::parse_not,
-            Expr::parse_and,
-            Expr::parse_or,
-            Expr::parse_next,
-            Expr::parse_finally,
-            Expr::parse_globally,
-            Expr::parse_until,
-            Expr::parse_weak_until,
-            Expr::parse_release,
-            Expr::parse_strong_release,
-            // parse identifier
-            alphanumeric1.map(|s: &str| Expr::Atomic(s.to_string())),
-        ))(input)
-    }
-
-    fn parse_false(input: &str) -> IResult<&str, Self> {
-        tag("false").map(|_| Expr::False).parse(input)
-    }
-
-    fn parse_true(input: &str) -> IResult<&str, Self> {
-        tag("true").map(|_| Expr::True).parse(input)
-    }
-
-    fn parse_not(input: &str) -> IResult<&str, Self> {
-        preceded(tag("!"), Expr::parse.map(|e| Expr::Not(Box::new(e))))(input)
-    }
-
-    fn parse_next(input: &str) -> IResult<&str, Self> {
-        preceded(tag("X "), Expr::parse.map(|e| Expr::Next(Box::new(e))))(input)
-    }
-
-    fn parse_globally(input: &str) -> IResult<&str, Self> {
-        preceded(tag("G "), Expr::parse.map(|e| Expr::Globally(Box::new(e))))(input)
-    }
-
-    fn parse_finally(input: &str) -> IResult<&str, Self> {
-        preceded(tag("F "), Expr::parse.map(|e| Expr::Finally(Box::new(e))))(input)
-    }
-
-    fn parse_and(input: &str) -> IResult<&str, Self> {
-        preceded(
-            tag("& "),
-            separated_pair(Expr::parse, char(' '), Expr::parse)
-                .map(|(e1, e2)| Expr::And(Box::new(e1), Box::new(e2))),
-        )(input)
-    }
-
-    fn parse_or(input: &str) -> IResult<&str, Self> {
-        preceded(
-            tag("| "),
-            separated_pair(Expr::parse, char(' '), Expr::parse)
-                .map(|(e1, e2)| Expr::Or(Box::new(e1), Box::new(e2))),
-        )(input)
-    }
-
-    fn parse_until(input: &str) -> IResult<&str, Self> {
-        preceded(
-            tag("U "),
-            separated_pair(Expr::parse, char(' '), Expr::parse)
-                .map(|(e1, e2)| Expr::Until(Box::new(e1), Box::new(e2))),
-        )(input)
-    }
-
-    fn parse_weak_until(input: &str) -> IResult<&str, Self> {
-        preceded(
-            tag("W "),
-            separated_pair(Expr::parse, char(' '), Expr::parse)
-                .map(|(e1, e2)| Expr::WeakUntil(Box::new(e1), Box::new(e2))),
-        )(input)
-    }
-
-    fn parse_release(input: &str) -> IResult<&str, Self> {
-        preceded(
-            tag("R "),
-            separated_pair(Expr::parse, char(' '), Expr::parse)
-                .map(|(e1, e2)| Expr::Release(Box::new(e1), Box::new(e2))),
-        )(input)
-    }
-
-    fn parse_strong_release(input: &str) -> IResult<&str, Self> {
-        preceded(
-            tag("M "),
-            separated_pair(Expr::parse, char(' '), Expr::parse)
-                .map(|(e1, e2)| Expr::StrongRelease(Box::new(e1), Box::new(e2))),
-        )(input)
-    }
-
+// Formatting
+impl Expr {
     fn fmt_braces(&self) -> String {
         match self {
             e @ Expr::Atomic(_)
@@ -628,5 +540,132 @@ impl Display for Expr {
             Expr::StrongRelease(lhs, rhs) => format!("{} M {}", lhs.fmt_braces(), rhs.fmt_braces()),
         };
         write!(f, "{}", symbol)
+    }
+}
+
+// Parsing
+impl Expr {
+    fn parse(input: &str) -> IResult<&str, Self> {
+        alt((
+            Expr::parse_false,
+            Expr::parse_true,
+            Expr::parse_not,
+            Expr::parse_and,
+            Expr::parse_or,
+            Expr::parse_next,
+            Expr::parse_finally,
+            Expr::parse_globally,
+            Expr::parse_until,
+            Expr::parse_weak_until,
+            Expr::parse_release,
+            Expr::parse_strong_release,
+            // parse identifier
+            alphanumeric1.map(|s: &str| Expr::Atomic(s.to_string())),
+        ))(input)
+    }
+
+    fn parse_false(input: &str) -> IResult<&str, Self> {
+        tag("false").map(|_| Expr::False).parse(input)
+    }
+
+    fn parse_true(input: &str) -> IResult<&str, Self> {
+        tag("true").map(|_| Expr::True).parse(input)
+    }
+
+    fn parse_not(input: &str) -> IResult<&str, Self> {
+        preceded(tag("!"), Expr::parse.map(|e| Expr::Not(Box::new(e))))(input)
+    }
+
+    fn parse_next(input: &str) -> IResult<&str, Self> {
+        preceded(tag("X "), Expr::parse.map(|e| Expr::Next(Box::new(e))))(input)
+    }
+
+    fn parse_globally(input: &str) -> IResult<&str, Self> {
+        preceded(tag("G "), Expr::parse.map(|e| Expr::Globally(Box::new(e))))(input)
+    }
+
+    fn parse_finally(input: &str) -> IResult<&str, Self> {
+        preceded(tag("F "), Expr::parse.map(|e| Expr::Finally(Box::new(e))))(input)
+    }
+
+    fn parse_and(input: &str) -> IResult<&str, Self> {
+        preceded(
+            tag("& "),
+            separated_pair(Expr::parse, char(' '), Expr::parse)
+                .map(|(e1, e2)| Expr::And(Box::new(e1), Box::new(e2))),
+        )(input)
+    }
+
+    fn parse_or(input: &str) -> IResult<&str, Self> {
+        preceded(
+            tag("| "),
+            separated_pair(Expr::parse, char(' '), Expr::parse)
+                .map(|(e1, e2)| Expr::Or(Box::new(e1), Box::new(e2))),
+        )(input)
+    }
+
+    fn parse_until(input: &str) -> IResult<&str, Self> {
+        preceded(
+            tag("U "),
+            separated_pair(Expr::parse, char(' '), Expr::parse)
+                .map(|(e1, e2)| Expr::Until(Box::new(e1), Box::new(e2))),
+        )(input)
+    }
+
+    fn parse_weak_until(input: &str) -> IResult<&str, Self> {
+        preceded(
+            tag("W "),
+            separated_pair(Expr::parse, char(' '), Expr::parse)
+                .map(|(e1, e2)| Expr::WeakUntil(Box::new(e1), Box::new(e2))),
+        )(input)
+    }
+
+    fn parse_release(input: &str) -> IResult<&str, Self> {
+        preceded(
+            tag("R "),
+            separated_pair(Expr::parse, char(' '), Expr::parse)
+                .map(|(e1, e2)| Expr::Release(Box::new(e1), Box::new(e2))),
+        )(input)
+    }
+
+    fn parse_strong_release(input: &str) -> IResult<&str, Self> {
+        preceded(
+            tag("M "),
+            separated_pair(Expr::parse, char(' '), Expr::parse)
+                .map(|(e1, e2)| Expr::StrongRelease(Box::new(e1), Box::new(e2))),
+        )(input)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    // Expression tests
+    #[test]
+    pub fn simple_pnf() {
+        let cases = vec![
+            ("!& a b", "| !a !b"),
+            ("& true a", "a"),
+            ("& false a", "false"),
+            ("!| a b", "& !a !b"),
+            ("F a", "U true a"),
+            ("G a", "R false a"),
+            ("W a b", "R b | a b"),
+            ("M a b", "U b & a b"),
+            ("!!a", "a"),
+            ("!!!a", "!a"),
+            ("!X a", "X !a"),
+            ("!F a", "R false !a"),
+            ("!G a", "U true !a"),
+            ("!U a b", "R !a !b"),
+            ("!R a b", "U !a !b"),
+        ];
+
+        for (input, expected) in cases {
+            assert_eq!(
+                Formula::parse(input).unwrap().pnf(),
+                Formula::parse(expected).unwrap()
+            );
+        }
     }
 }
