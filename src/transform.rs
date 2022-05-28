@@ -3,7 +3,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use buchi::nba::Buchi;
-use ltl::formula::{Expr, Formula};
+use ltl::{Expr, Formula};
 
 pub fn ltl_to_gnba(formula: &Formula) -> Buchi {
     let mut gnba = Buchi::new();

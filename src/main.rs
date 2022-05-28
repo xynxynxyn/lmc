@@ -2,8 +2,7 @@ mod transform;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use itertools::Itertools;
-use ltl::formula::{Expr, Formula};
+use ltl::Formula;
 use std::ffi::OsString;
 use std::{
     collections::{HashSet, VecDeque},
@@ -28,6 +27,8 @@ enum Commands {
     Petri {
         /// Number of PNML files which contain PetriNets to be analysed
         files: Vec<OsString>,
+        #[clap(short, long)]
+        ltl: Option<OsString>,
     },
     /// Operate on LTL formulas
     LTL {
@@ -45,6 +46,8 @@ enum Commands {
         #[clap(short, long)]
         /// Generate a GNBA from the LTL formula in HOA format
         gnba: bool,
+        #[clap(short, long)]
+        dot: bool,
     },
 }
 
@@ -52,11 +55,27 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Petri { files } => {
+        Commands::Petri { files, ltl } => {
             println!("-- Mode: Petrinet Analysis --");
             for path in files {
                 println!("-- Analysing PNML file '{}'", path.to_string_lossy());
                 analyse_petri_net(&path)?;
+            }
+
+            if let Some(path) = ltl {
+                let file_content = fs::read_to_string(path)?;
+                let formulas = ltl::xml::parse(&file_content);
+                match formulas {
+                    Some(formulas) => {
+                        for (id, f) in formulas {
+                            println!("{}: '{}'", id, f);
+                        }
+                    }
+                    None => println!(
+                        "Could not parse formulas from file {}",
+                        path.to_string_lossy()
+                    ),
+                }
             }
         }
         Commands::LTL {
@@ -65,16 +84,13 @@ fn main() -> Result<()> {
             satisfiable,
             nba,
             gnba,
+            dot,
         } => {
-            let formula = Formula::parse(formula)?;
-            println!("Formula: '{}'", formula);
-            let pnf_formula = formula.pnf();
+            let parsed_formula = Formula::parse(formula)?;
+            println!("Formula: '{}'", parsed_formula);
+            let pnf_formula = parsed_formula.pnf();
             if *pnf {
                 println!("PNF: '{}'", pnf_formula);
-                println!("Consistent Subsets:");
-                for s in pnf_formula.elementary().iter().sorted() {
-                    println!("{}", Expr::print_set(&s));
-                }
             }
 
             if *gnba || *nba || *satisfiable {
@@ -83,22 +99,30 @@ fn main() -> Result<()> {
 
                 if *gnba {
                     println!("--- Generated GNBA ---\n{}", gnba_f.hoa());
+                    if *dot {
+                        println!("--- GNBA dot ---\n{}", gnba_f.to_dot());
+                    }
                 }
 
-                if *nba || *satisfiable {
+                if *nba {
                     println!("--- Creating NBA ---");
                     let nba_f = gnba_f.gnba_to_nba();
                     if *nba {
                         println!("--- Generated NBA ---\n{}", nba_f.hoa());
-                    }
-                    if *satisfiable {
-                        println!("--- Checking Satisfiability ---");
-                        let trace = nba_f.verify();
-                        match trace {
-                            Ok(_) => println!("Satisfiable: False"),
-                            Err(t) => println!("Satisfiable: True\nTrace: {}", t),
+                        if *dot {
+                            println!("--- NBA dot ---\n{}", nba_f.to_dot());
                         }
                     }
+                }
+            }
+            if *satisfiable {
+                println!("--- Checking Satisfiability ---");
+                // Negate the formula and verify it
+                let negation = Formula::parse(&format!("!{}", formula))?;
+                let trace = ltl_to_gnba(&negation).verify();
+                match trace {
+                    Ok(_) => println!("False"),
+                    Err(trace) => println!("Found counterexample trace:\n{}", trace),
                 }
             }
         }

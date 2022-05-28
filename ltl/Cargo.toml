@@ -9,3 +9,6 @@ edition = "2021"
 itertools = "0.10.3"
 nom = "7.1.1"
 thiserror = "1.0.31"
+quick-xml = { version = "0.23.0", features = ["serialize"] }
+serde = "1.0.137"
+serde_derive = "1.0.137"

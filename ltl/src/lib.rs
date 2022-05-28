@@ -1,5 +1,6 @@
 pub mod error;
-pub mod formula;
+mod formula;
+pub use formula::*;
 
 #[cfg(test)]
 mod tests {

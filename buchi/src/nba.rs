@@ -1,5 +1,6 @@
 use bimap::BiMap;
 use itertools::Itertools;
+use std::fmt::Write;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fmt::Display,
@@ -41,6 +42,7 @@ pub struct Trace {
     pub omega_words: Vec<Word>,
 }
 
+// Formatting
 impl Buchi {
     /// Tranform the automataon into HOA formatted string
     pub fn hoa(&self) -> String {
@@ -121,6 +123,40 @@ impl Buchi {
 
         format!("{}\n{}", header, body)
     }
+
+    pub fn to_dot(&self) -> String {
+        let mut out = String::new();
+
+        writeln!(&mut out, "digraph g {{\nmindist = 2.0").unwrap();
+        for (state, transitions) in &self.states {
+            for (word, targets) in transitions {
+                for target in targets {
+                    writeln!(
+                        &mut out,
+                        "\"{}\" -> {{\"{}\"}} [label = \"{}\"]",
+                        self.labels[&state], self.labels[&target], word.id
+                    )
+                    .unwrap();
+                }
+            }
+        }
+
+        for (i, initial) in self.initial_states.iter().enumerate() {
+            writeln!(
+                &mut out,
+                "init{0} [label=\"\", shape=point]\ninit{0} -> \"{1}\"",
+                i, self.labels[initial]
+            )
+            .unwrap();
+        }
+
+        out.push('}');
+        out.push('\n');
+        out
+    }
+}
+
+impl Buchi {
     /// Create a new empty Buchi Automata
     pub fn new() -> Self {
         Buchi {

@@ -1,10 +1,11 @@
+pub mod xml;
 use itertools::Itertools;
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Display};
 
 use nom::{
     branch::alt,
-    bytes::complete::tag,
-    character::{complete::alphanumeric1, streaming::char},
+    bytes::complete::{tag, take_till},
+    character::{is_space, streaming::char},
     sequence::{preceded, separated_pair},
     IResult, Parser,
 };
@@ -128,7 +129,7 @@ fn satisfies(set: &BTreeSet<Expr>, expr: &Expr) -> bool {
         }
         e @ Expr::Release(lhs, rhs) => {
             (!(set.contains(lhs) && set.contains(rhs)) || set.contains(e))
-                && (!(set.contains(e) && set.contains(&lhs.negated())) || set.contains(rhs))
+                && (!set.contains(e) || set.contains(rhs))
         }
         _ => true,
     };
@@ -206,7 +207,7 @@ impl Expr {
 
     pub fn print_set(set: &BTreeSet<Self>) -> String {
         format!(
-            "{{{}}}",
+            "{}",
             set.iter().sorted_by(|r, s| Expr::cmp(r, s)).join(", ")
         )
     }
@@ -560,7 +561,7 @@ impl Expr {
             Expr::parse_release,
             Expr::parse_strong_release,
             // parse identifier
-            alphanumeric1.map(|s: &str| Expr::Atomic(s.to_string())),
+            take_till(|c| is_space(c as u8)).map(|s: &str| Expr::Atomic(s.to_string())), //|s| take_till(is_space)(s).map(|s: &str| Expr::Atomic(s.to_string())),
         ))(input)
     }
 
