@@ -95,6 +95,19 @@ impl Formula {
         elementary.collect()
     }
 
+    pub fn consistent_subformula(&self) -> BTreeSet<BTreeSet<Expr>> {
+        // Collect all subformula in post order
+        let closure = self
+            .root_expr
+            .subformula()
+            .into_iter()
+            .sorted()
+            .rev()
+            .collect_vec();
+
+        BTreeSet::new()
+    }
+
     pub fn alphabet(&self) -> BTreeSet<Expr> {
         let a = self.root_expr.alphabet();
         let mut b = a.clone();

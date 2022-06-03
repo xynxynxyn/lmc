@@ -3,6 +3,7 @@ mod transform;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use ltl::Formula;
+use petri::PetriNet;
 use std::ffi::OsString;
 use std::{
     collections::{HashSet, VecDeque},
@@ -10,6 +11,8 @@ use std::{
     time::{Duration, SystemTime},
 };
 use transform::ltl_to_gnba;
+
+use crate::transform::petri_to_gnba;
 
 // opt parsing
 #[derive(Parser)]
@@ -26,7 +29,9 @@ enum Commands {
     /// Analyse the statespace of PetriNets provided by the given files
     Petri {
         /// Number of PNML files which contain PetriNets to be analysed
-        files: Vec<OsString>,
+        file: OsString,
+        #[clap(short, long)]
+        analyse: bool,
         #[clap(short, long)]
         ltl: Option<OsString>,
     },
@@ -55,21 +60,25 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Petri { files, ltl } => {
-            println!("-- Mode: Petrinet Analysis --");
-            for path in files {
-                println!("-- Analysing PNML file '{}'", path.to_string_lossy());
-                analyse_petri_net(&path)?;
+        Commands::Petri { file, analyse, ltl } => {
+            if *analyse {
+                println!("-- Analysing PNML file '{}'", file.to_string_lossy());
+                analyse_petri_net(&file)?;
             }
 
             if let Some(path) = ltl {
                 let file_content = fs::read_to_string(path)?;
                 let formulas = ltl::xml::parse(&file_content);
+                let net = read_petri(file)?;
+                // gnba of the petri net
+                let _gnba = petri_to_gnba(net);
                 match formulas {
                     Some(formulas) => {
                         for (id, f) in formulas {
                             println!("{}: '{}'", id, f);
+                            println!("{}", ltl_to_gnba(&f).hoa());
                         }
+                        // Analyse the petri net by creating the intersection
                     }
                     None => println!(
                         "Could not parse formulas from file {}",
@@ -131,9 +140,13 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn analyse_petri_net(path: &OsString) -> Result<()> {
+fn read_petri(path: &OsString) -> petri::Result<PetriNet> {
     let file_content = fs::read_to_string(path)?;
-    let net = petri::from_xml(&file_content)?;
+    petri::from_xml(&file_content).into()
+}
+
+fn analyse_petri_net(path: &OsString) -> Result<()> {
+    let net = read_petri(path)?;
 
     let start = SystemTime::now();
     // Find all possible markings

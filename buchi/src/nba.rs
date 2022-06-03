@@ -33,13 +33,21 @@ pub struct Word {
 
 #[derive(Debug, Eq, Clone, Copy, Hash, PartialEq, PartialOrd, Ord)]
 pub struct State {
-    id: usize,
+    pub id: usize,
 }
 
 #[derive(Debug)]
 pub struct Trace {
     pub words: Vec<Word>,
     pub omega_words: Vec<Word>,
+}
+
+pub struct Transition<'a> {
+    pub from: &'a str,
+    pub from_state: State,
+    pub to: &'a str,
+    pub to_state: State,
+    pub label: &'a str,
 }
 
 // Formatting
@@ -112,7 +120,7 @@ impl Buchi {
                     } else {
                         format!(" {{{}}}", acceptance_ids.join(" "))
                     };
-                    edges.push(format!("\n  {} {}{}", word.id, t.id, id));
+                    edges.push(format!("\n  {{{}}} {}{}", word.id, t.id, id));
                 }
             }
 
@@ -217,18 +225,40 @@ impl Buchi {
             .insert(target);
     }
 
-    /// Get the transitions that exit the state
-    pub fn transitions(&self, state: State) -> Option<&HashMap<Word, HashSet<State>>> {
-        self.states.get(&state)
-    }
-
     /// Get a set of all states that exist in the automaton. It does not matter whether they're reachable or not.
     pub fn states(&self) -> HashSet<State> {
         self.states.keys().map(|s| s.clone()).collect()
     }
 
+    pub fn initial_states(&self) -> &HashSet<State> {
+        &self.initial_states
+    }
+
     pub fn accepting_sets(&self) -> &HashSet<BTreeSet<State>> {
         &self.accepting_sets
+    }
+
+    pub fn label(&self, state: &State) -> Option<&str> {
+        self.labels.get(state).map(String::as_str)
+    }
+
+    pub fn transitions(&self) -> Vec<Transition> {
+        self.states
+            .iter()
+            .map(|(s, transitions)| {
+                transitions.iter().map(|(label, targets)| {
+                    targets.iter().map(|t| Transition {
+                        from: self.labels.get(s).map(String::as_str).unwrap_or(""),
+                        from_state: *s,
+                        to: self.labels.get(t).map(String::as_str).unwrap_or(""),
+                        to_state: *t,
+                        label: &label.id,
+                    })
+                })
+            })
+            .flatten()
+            .flatten()
+            .collect_vec()
     }
 
     /// Returns a set of strongly connected components using Tarjan's algorithm
