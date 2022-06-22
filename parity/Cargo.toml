@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 itertools = "0.10.3"
+nom = "7.1.1"
 petgraph = "0.6.2"
