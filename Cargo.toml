@@ -9,6 +9,7 @@ edition = "2021"
 petri = { path = "./petri" }
 ltl = { path = "./ltl" }
 buchi = { path = "./buchi" }
+parity = { path = "./parity" }
 
 clap = { version = "3.1.17", features = ["derive"] }
 anyhow = "1.0.57"
