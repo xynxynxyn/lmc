@@ -56,7 +56,14 @@ enum Commands {
         dot: bool,
     },
     Parity {
+        /// Parity game file to parse
         file: OsString,
+        /// Print the vertices won by each player to stdout
+        #[clap(short, long)]
+        regions: bool,
+        /// Print the strategy derived for the input to stdout
+        #[clap(short, long)]
+        strategy: bool,
     },
 }
 
@@ -139,36 +146,48 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Commands::Parity { file } => {
+        Commands::Parity {
+            file,
+            regions,
+            strategy,
+        } => {
             let input = fs::read_to_string(file)?;
             let game = parity::parse_game(&input).context("Could not parse parity game")?;
-            let (w_0, w_1) = game.fpi();
+            let sol = game.fpi();
 
-            if !w_0.is_empty() {
-                println!(
-                    "won by even: {}",
-                    w_0.iter()
-                        .sorted_by_key(|m| m.id)
-                        .map(|m| match &m.label {
-                            Some(label) => format!("{}", label),
-                            None => format!("{}/{}", m.id, m.priority),
-                        })
-                        .collect_vec()
-                        .join(" ")
-                );
+            if *regions {
+                if !sol.even_region.is_empty() {
+                    println!(
+                        "won by even: {}",
+                        sol.even_region
+                            .iter()
+                            .sorted_by_key(|m| m.id)
+                            .map(|m| match &m.label {
+                                Some(label) => format!("{}", label),
+                                None => format!("{}/{}", m.id, m.priority),
+                            })
+                            .collect_vec()
+                            .join(" ")
+                    );
+                }
+                if !sol.odd_region.is_empty() {
+                    println!(
+                        "won by odd: {}",
+                        sol.odd_region
+                            .iter()
+                            .sorted_by_key(|m| m.id)
+                            .map(|m| match &m.label {
+                                Some(label) => format!("{}", label),
+                                None => format!("{}/{}", m.id, m.priority),
+                            })
+                            .collect_vec()
+                            .join(" ")
+                    );
+                }
             }
-            if !w_1.is_empty() {
-                println!(
-                    "won by odd: {}",
-                    w_1.iter()
-                        .sorted_by_key(|m| m.id)
-                        .map(|m| match &m.label {
-                            Some(label) => format!("{}", label),
-                            None => format!("{}/{}", m.id, m.priority),
-                        })
-                        .collect_vec()
-                        .join(" ")
-                );
+
+            if *strategy {
+                println!("{}", sol)
             }
         }
     }

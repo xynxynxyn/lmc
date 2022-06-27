@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, char, digit1, multispace1};
 use nom::combinator::{map, opt};
@@ -5,6 +6,7 @@ use nom::multi::separated_list0;
 use nom::sequence::{delimited, tuple};
 use nom::IResult;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::fmt::Display;
 
 use petgraph::graph::{DiGraph, NodeIndex};
 // The main data structure is a Graph
@@ -30,10 +32,19 @@ impl MetaData {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Owner {
     Odd,
     Even,
+}
+
+impl Display for Owner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Owner::Odd => write!(f, "1"),
+            Owner::Even => write!(f, "0"),
+        }
+    }
 }
 
 pub struct Graph {
@@ -101,7 +112,7 @@ impl Graph {
             1 - p
         }
     }
-    fn onestep(&self, v: NodeIndex, z: &BTreeSet<NodeIndex>) -> usize {
+    fn onestep(&self, v: NodeIndex, z: &BTreeSet<NodeIndex>) -> (usize, Option<NodeIndex>) {
         let p = self
             .inner
             .node_weight(v)
@@ -109,34 +120,36 @@ impl Graph {
 
         match p.owner {
             Owner::Even => {
-                if self
-                    .inner
-                    .neighbors_directed(v, petgraph::EdgeDirection::Outgoing)
-                    .into_iter()
-                    .any(|n| self.winner(n, z) == 0)
-                {
-                    0
-                } else {
-                    1
+                match self.inner.neighbors(v).into_iter().find_map(|n| {
+                    if self.winner(n, z) == 0 {
+                        Some((0, Some(n)))
+                    } else {
+                        None
+                    }
+                }) {
+                    Some(e) => e,
+                    None => (1, None),
                 }
             }
             Owner::Odd => {
-                if self
-                    .inner
-                    .neighbors_directed(v, petgraph::EdgeDirection::Outgoing)
-                    .into_iter()
-                    .any(|n| self.winner(n, z) == 1)
-                {
-                    1
-                } else {
-                    0
+                match self.inner.neighbors(v).into_iter().find_map(|n| {
+                    if self.winner(n, z) == 1 {
+                        Some((1, Some(n)))
+                    } else {
+                        None
+                    }
+                }) {
+                    Some(e) => e,
+                    None => (0, None),
                 }
             }
         }
     }
 
-    pub fn fpi(&self) -> (HashSet<&MetaData>, HashSet<&MetaData>) {
+    pub fn fpi<'a>(&'a self) -> Solution<'a> {
         let mut z = BTreeSet::new();
+        let mut frozen = HashMap::new();
+        let mut strategy = HashMap::new();
         let mut p = 0;
         let max_priority = self
             .highest_priority()
@@ -148,18 +161,47 @@ impl Graph {
                 .inner
                 .node_indices()
                 .into_iter()
-                .filter(|v| *&self.inner[*v].priority == p)
-                .filter(|v| !z.contains(v))
-                .filter(|v| self.onestep(*v, &z) != parity)
+                .filter(|v| *&self.inner[*v].priority == p) // All vertices with priority p
+                .filter(|v| !frozen.contains_key(v) && !z.contains(v)) // Only if the vertex is not frozen and not in Z
                 .collect();
-            if !y.is_empty() {
-                z = z
-                    .union(&y)
-                    .cloned()
-                    .filter(|v| *&self.inner[*v].priority >= p)
-                    .collect();
+
+            let mut chg = false;
+            for v in y {
+                let (alpha, strat) = self.onestep(v, &z);
+                strategy.insert(v, strat);
+                if alpha != parity {
+                    chg = true;
+                    z.insert(v);
+                }
+            }
+
+            if chg {
+                for v in self
+                    .inner
+                    .node_indices()
+                    .into_iter()
+                    .filter(|v| *&self.inner[*v].priority < p)
+                    .filter(|v| !frozen.contains_key(v))
+                    .collect_vec()
+                {
+                    if self.winner(v, &z) == (p + 1) % 2 {
+                        frozen.insert(v, p);
+                    } else {
+                        z.remove(&v);
+                    }
+                }
                 p = 0;
             } else {
+                for v in self
+                    .inner
+                    .node_indices()
+                    .into_iter()
+                    .filter(|v| *&self.inner[*v].priority < p)
+                    .filter(|v| frozen.get(v) == Some(&p))
+                    .collect_vec()
+                {
+                    frozen.remove(&v);
+                }
                 p += 1;
             }
         }
@@ -169,9 +211,95 @@ impl Graph {
             .into_iter()
             .partition(|v| self.winner(*v, &z) == 0);
 
-        let w_0 = w_0.into_iter().map(|v| &self.inner[v]).collect();
-        let w_1 = w_1.into_iter().map(|v| &self.inner[v]).collect();
-        (w_0, w_1)
+        let s_0 = w_0
+            .iter()
+            .filter(|v| *&self.inner[**v].owner == Owner::Even && strategy.contains_key(*v))
+            .map(|v| (&self.inner[*v], strategy[v]));
+        let s_1 = w_1
+            .iter()
+            .filter(|v| *&self.inner[**v].owner == Owner::Odd && strategy.contains_key(*v))
+            .map(|v| (&self.inner[*v], strategy[v]));
+
+        let mut strategy = HashMap::new();
+        for (v, t) in s_0 {
+            strategy.insert(
+                v.id,
+                Strategy {
+                    winner: v.owner,
+                    next_node_id: t.map(|a| self.inner[a].id),
+                },
+            );
+        }
+        for (v, t) in s_1 {
+            strategy.insert(
+                v.id,
+                Strategy {
+                    winner: v.owner,
+                    next_node_id: t.map(|a| self.inner[a].id),
+                },
+            );
+        }
+
+        let w_0: HashSet<_> = w_0.into_iter().map(|v| &self.inner[v]).collect();
+        let w_1: HashSet<_> = w_1.into_iter().map(|v| &self.inner[v]).collect();
+
+        for w in &w_0 {
+            if !strategy.contains_key(&w.id) {
+                strategy.insert(
+                    w.id,
+                    Strategy {
+                        winner: Owner::Even,
+                        next_node_id: None,
+                    },
+                );
+            }
+        }
+
+        for w in &w_1 {
+            if !strategy.contains_key(&w.id) {
+                strategy.insert(
+                    w.id,
+                    Strategy {
+                        winner: Owner::Odd,
+                        next_node_id: None,
+                    },
+                );
+            }
+        }
+
+        Solution {
+            even_region: w_0,
+            odd_region: w_1,
+            strategy,
+        }
+    }
+}
+
+pub struct Solution<'a> {
+    pub even_region: HashSet<&'a MetaData>,
+    pub odd_region: HashSet<&'a MetaData>,
+    pub strategy: HashMap<usize, Strategy>,
+}
+
+pub struct Strategy {
+    pub winner: Owner,
+    pub next_node_id: Option<usize>,
+}
+
+impl Display for Solution<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "paritysol {};", self.strategy.len())?;
+        for (v, s) in self.strategy.iter().sorted_by_key(|(&k, _)| k) {
+            write!(f, "{} {}", v, s.winner)?;
+
+            if let Some(next) = s.next_node_id {
+                write!(f, " {}", next)?;
+            }
+
+            write!(f, ";\n")?;
+        }
+
+        Ok(())
     }
 }
 
