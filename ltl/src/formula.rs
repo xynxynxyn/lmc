@@ -96,8 +96,9 @@ impl Formula {
     }
 
     pub fn consistent_subformula(&self) -> BTreeSet<BTreeSet<Expr>> {
+        // TODO alternative implementation of consistent subformulae
         // Collect all subformula in post order
-        let closure = self
+        let _closure = self
             .root_expr
             .subformula()
             .into_iter()

@@ -7,7 +7,7 @@ use itertools::Itertools;
 use ltl::{Expr, Formula};
 use petri::PetriNet;
 
-pub fn ts_and_buchi_product(ts: Buchi, a: Buchi) -> Buchi {
+pub fn _ts_and_buchi_product(ts: Buchi, a: Buchi) -> Buchi {
     let mut product = Buchi::new();
     let mut states = HashMap::new();
     for ts_transitions in ts.transitions() {
@@ -248,7 +248,7 @@ mod test {
     use buchi::nba::Buchi;
     use ltl::Formula;
 
-    use super::{ltl_to_gnba, ts_and_buchi_product};
+    use super::{ltl_to_gnba, _ts_and_buchi_product};
 
     #[test]
     pub fn small_product() {
@@ -286,7 +286,7 @@ mod test {
 
         println!("TS\n{}", ts.to_dot());
         println!("A\n{}", a.to_dot());
-        let product = ts_and_buchi_product(ts, a);
+        let product = _ts_and_buchi_product(ts, a);
         println!("Product:\n{}", product.to_dot());
         panic!("Hey")
     }
