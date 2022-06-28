@@ -2,9 +2,9 @@ mod fpi;
 mod parse;
 use itertools::Itertools;
 pub use parse::parse_game;
+use petgraph::graph::DiGraph;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
-use petgraph::graph::DiGraph;
 
 // The main data structure is a Graph
 // Each vertex contains information:
