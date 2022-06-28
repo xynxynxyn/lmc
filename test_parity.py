@@ -24,6 +24,7 @@ def test_fpi(file):
 
     sh(f"{EXEC_PATH} parity -s {file} > game.sol")
     oink_verify = sh(f"{OINK_PATH} -v {file} --sol game.sol")
+    sh("rm game.sol")
 
     if oink_verify["status"] != 0:
         raise AssertionError(f"oink could not verify solution")
