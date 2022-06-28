@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 import glob
+import os
+import sys
 import subprocess
 
 OINK_PATH = "../oink/build/oink"
-TEST_PATH = "./inputs/tests/*"
+TEST_DIR = "./inputs/tests"
 EXEC_PATH = "./target/release/lmc"
 
 
@@ -31,7 +33,22 @@ def test_fpi(file):
 
 
 if __name__ == "__main__":
-    for file in sorted(glob.glob(TEST_PATH)):
+    print(f"compiling executable")
+    sh("cargo build --release")
+
+    if not os.path.exists(EXEC_PATH):
+        print(f"ERR could not find executable {EXEC_PATH}")
+        sys.exit(1)
+
+    if not os.path.exists(OINK_PATH):
+        print(f"ERR could not find oink executable {OINK_PATH}")
+        sys.exit(1)
+
+    if not os.path.isdir(TEST_DIR):
+        print(f"ERR could not find test directory {TEST_DIR}")
+        sys.exit(1)
+
+    for file in sorted(glob.glob(f"{TEST_DIR}/*")):
         fpi = " OK"
         try:
             test_fpi(file)
