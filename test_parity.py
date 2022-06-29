@@ -24,7 +24,7 @@ def test_generic(file, algorithm):
             f"winning regions differ:\n\toink: {oink_regions}\n\tlmc:  {lmc_regions}"
         )
 
-    sh(f"{EXEC_PATH} parity -s {file} > game.sol")
+    sh(f"{EXEC_PATH} parity -s -a {algorithm} {file} > game.sol")
     oink_verify = sh(f"{OINK_PATH} -v {file} --sol game.sol")
     sh("rm game.sol")
 
@@ -69,6 +69,6 @@ if __name__ == "__main__":
             test_zielonka(file)
         except AssertionError as error:
             print(f"{file} {error}")
-            fpi = "ERR"
+            zielonka = "ERR"
 
-        print("file {}: fpi {} zielonka {}".format(file, fpi, zielonka))
+        print("file {}: fpi {}   zielonka {}".format(file, fpi, zielonka))
