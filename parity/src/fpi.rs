@@ -4,10 +4,6 @@ use petgraph::graph::NodeIndex;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 impl Graph {
-    fn highest_priority(&self) -> Option<usize> {
-        self.inner.node_weights().map(|n| n.priority).max()
-    }
-
     fn winner(&self, v: NodeIndex, z: &BTreeSet<NodeIndex>) -> usize {
         let p = self
             .inner

@@ -1,8 +1,10 @@
 mod fpi;
 mod parse;
+mod zielonka;
 use itertools::Itertools;
 pub use parse::parse_game;
-use petgraph::graph::DiGraph;
+use petgraph::graph::NodeIndex;
+use petgraph::stable_graph::StableDiGraph;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
@@ -10,7 +12,7 @@ use std::fmt::Display;
 // Each vertex contains information:
 // - What is the priority (a number from 0 to n)
 // - What is the
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct MetaData {
     pub id: usize,
     pub label: Option<String>,
@@ -29,10 +31,27 @@ impl MetaData {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Owner {
     Odd,
     Even,
+}
+
+impl Owner {
+    fn neg(&self) -> Self {
+        match self {
+            Owner::Odd => Owner::Even,
+            Owner::Even => Owner::Odd,
+        }
+    }
+
+    fn from_usize(u: usize) -> Self {
+        if u % 2 == 0 {
+            Owner::Even
+        } else {
+            Owner::Odd
+        }
+    }
 }
 
 impl Display for Owner {
@@ -44,15 +63,27 @@ impl Display for Owner {
     }
 }
 
+#[derive(Clone)]
 pub struct Graph {
-    inner: DiGraph<MetaData, ()>,
+    inner: StableDiGraph<MetaData, ()>,
 }
 
 impl Graph {
     fn new() -> Self {
         Graph {
-            inner: DiGraph::new(),
+            inner: StableDiGraph::new(),
         }
+    }
+
+    fn highest_priority(&self) -> Option<usize> {
+        self.inner.node_weights().map(|n| n.priority).max()
+    }
+
+    fn player_vertices(&self, player: Owner) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.inner
+            .node_indices()
+            .into_iter()
+            .filter(move |v| self.inner[*v].owner == player)
     }
 }
 
@@ -60,6 +91,16 @@ pub struct Solution<'a> {
     pub even_region: HashSet<&'a MetaData>,
     pub odd_region: HashSet<&'a MetaData>,
     pub strategy: HashMap<usize, Strategy>,
+}
+
+impl Solution<'_> {
+    fn empty() -> Self {
+        Solution {
+            even_region: HashSet::new(),
+            odd_region: HashSet::new(),
+            strategy: HashMap::new(),
+        }
+    }
 }
 
 pub struct Strategy {

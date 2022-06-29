@@ -153,7 +153,7 @@ fn main() -> Result<()> {
         } => {
             let input = fs::read_to_string(file)?;
             let game = parity::parse_game(&input).context("Could not parse parity game")?;
-            let sol = game.fpi();
+            let sol = game.zielonka();
 
             if *regions {
                 if !sol.even_region.is_empty() {
