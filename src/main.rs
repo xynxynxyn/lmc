@@ -68,6 +68,9 @@ enum Commands {
         #[clap(short, long)]
         #[clap(value_enum)]
         algorithm: Option<Algorithm>,
+        /// Instead of printing the solution to stdout it is written to the given file instead
+        #[clap(short, long)]
+        target: Option<OsString>,
     },
 }
 
@@ -161,6 +164,7 @@ fn main() -> Result<()> {
             regions,
             strategy,
             algorithm,
+            target,
         } => {
             let input = fs::read_to_string(file)?;
             let game = parity::parse_game(&input).context("Could not parse parity game")?;
@@ -202,7 +206,11 @@ fn main() -> Result<()> {
             }
 
             if *strategy {
-                println!("{}", sol)
+                if let Some(path) = target {
+                    fs::write(path, sol.to_string())?;
+                } else {
+                    println!("{}", sol)
+                }
             }
         }
     }

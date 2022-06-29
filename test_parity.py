@@ -15,7 +15,9 @@ def sh(cmd):
 
 
 def test_generic(file, algorithm):
-    lmc_regions = sh(f"{EXEC_PATH} parity -a {algorithm} -r {file}")["text"]
+    lmc_regions = sh(
+        f"{EXEC_PATH} parity --algorithm {algorithm} --regions --strategy --target game.sol {file}"
+    )["text"]
     oink_regions = sh(
         f"{OINK_PATH} -p --no {file} | grep -o -E 'won by.*'")["text"]
 
@@ -24,7 +26,6 @@ def test_generic(file, algorithm):
             f"winning regions differ:\n\toink: {oink_regions}\n\tlmc:  {lmc_regions}"
         )
 
-    sh(f"{EXEC_PATH} parity -s -a {algorithm} {file} > game.sol")
     oink_verify = sh(f"{OINK_PATH} -v {file} --sol game.sol")
     sh("rm game.sol")
 
