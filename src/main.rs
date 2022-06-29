@@ -64,7 +64,17 @@ enum Commands {
         /// Print the strategy derived for the input to stdout
         #[clap(short, long)]
         strategy: bool,
+        /// Which algorithm to use
+        #[clap(short, long)]
+        #[clap(value_enum)]
+        algorithm: Option<Algorithm>,
     },
+}
+
+#[derive(clap::ValueEnum, Clone, Copy)]
+enum Algorithm {
+    FPI,
+    Zielonka,
 }
 
 fn main() -> Result<()> {
@@ -150,10 +160,15 @@ fn main() -> Result<()> {
             file,
             regions,
             strategy,
+            algorithm,
         } => {
             let input = fs::read_to_string(file)?;
             let game = parity::parse_game(&input).context("Could not parse parity game")?;
-            let sol = game.zielonka();
+            let algorithm = algorithm.unwrap_or(Algorithm::FPI);
+            let sol = match algorithm {
+                Algorithm::FPI => game.fpi(),
+                Algorithm::Zielonka => game.zielonka(),
+            };
 
             if *regions {
                 if !sol.even_region.is_empty() {

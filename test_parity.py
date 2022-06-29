@@ -14,8 +14,8 @@ def sh(cmd):
     return {"text": ps.communicate()[0], "status": ps.returncode}
 
 
-def test_fpi(file):
-    lmc_regions = sh(f"{EXEC_PATH} parity -r {file}")["text"]
+def test_generic(file, algorithm):
+    lmc_regions = sh(f"{EXEC_PATH} parity -a {algorithm} -r {file}")["text"]
     oink_regions = sh(
         f"{OINK_PATH} -p --no {file} | grep -o -E 'won by.*'")["text"]
 
@@ -30,6 +30,14 @@ def test_fpi(file):
 
     if oink_verify["status"] != 0:
         raise AssertionError(f"oink could not verify solution")
+
+
+def test_fpi(file):
+    test_generic(file, "fpi")
+
+
+def test_zielonka(file):
+    test_generic(file, "zielonka")
 
 
 if __name__ == "__main__":
@@ -56,4 +64,11 @@ if __name__ == "__main__":
             print(f"{file} {error}")
             fpi = "ERR"
 
-        print("file {}: fpi {}".format(file, fpi))
+        zielonka = " OK"
+        try:
+            test_zielonka(file)
+        except AssertionError as error:
+            print(f"{file} {error}")
+            fpi = "ERR"
+
+        print("file {}: fpi {} zielonka {}".format(file, fpi, zielonka))

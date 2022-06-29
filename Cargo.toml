@@ -11,6 +11,6 @@ ltl = { path = "./ltl" }
 buchi = { path = "./buchi" }
 parity = { path = "./parity" }
 
-clap = { version = "3.1.17", features = ["derive"] }
+clap = { version = "3.2.7", features = ["derive"] }
 anyhow = "1.0.57"
 itertools = "0.10.3"
