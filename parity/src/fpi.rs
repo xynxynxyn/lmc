@@ -1,4 +1,5 @@
 use crate::{Graph, Owner, Solution};
+use colored::Colorize;
 use itertools::Itertools;
 use petgraph::graph::NodeIndex;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -79,6 +80,7 @@ impl Graph {
                 }
                 if alpha != parity {
                     chg = true;
+                    log::debug!("distractions <- {}", self.debug_vertice(v));
                     z.insert(v);
                 }
             }
@@ -93,12 +95,20 @@ impl Graph {
                     .collect_vec()
                 {
                     if self.winner(v, &z) == (p + 1) % 2 {
+                        log::debug!(
+                            "{} {} at priority {}",
+                            "freezing".cyan(),
+                            self.debug_vertice(v),
+                            p
+                        );
                         frozen.insert(v, p);
                     } else {
+                        log::debug!("{} {}", "resetting".red(), self.debug_vertice(v));
                         z.remove(&v);
                     }
                 }
                 p = 0;
+                log::debug!("restarting after finding distractions");
             } else {
                 for v in self
                     .inner
@@ -108,11 +118,13 @@ impl Graph {
                     .filter(|v| frozen.get(v) == Some(&p))
                     .collect_vec()
                 {
+                    log::debug!("{} {}", "thawing".bright_red(), self.debug_vertice(v),);
                     frozen.remove(&v);
                 }
                 p += 1;
             }
         }
+
         let (w_0, w_1): (HashSet<_>, HashSet<_>) = self
             .inner
             .node_indices()
