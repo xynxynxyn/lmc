@@ -1,4 +1,4 @@
-use crate::{Graph, Owner, Solution, Strategy};
+use crate::{Graph, Owner, Solution};
 use itertools::Itertools;
 use petgraph::graph::NodeIndex;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -52,6 +52,7 @@ impl Graph {
     }
 
     pub fn fpi<'a>(&'a self) -> Solution<'a> {
+        log::info!("solving with FPI + freezing");
         let mut z = BTreeSet::new();
         let mut frozen = HashMap::new();
         let mut strategy = HashMap::new();
@@ -73,7 +74,9 @@ impl Graph {
             let mut chg = false;
             for v in y {
                 let (alpha, strat) = self.onestep(v, &z);
-                strategy.insert(v, strat);
+                if let Some(s) = strat {
+                    strategy.insert(v, s);
+                }
                 if alpha != parity {
                     chg = true;
                     z.insert(v);
@@ -110,72 +113,14 @@ impl Graph {
                 p += 1;
             }
         }
-        let (w_0, w_1): (BTreeSet<_>, BTreeSet<_>) = self
+        let (w_0, w_1): (HashSet<_>, HashSet<_>) = self
             .inner
             .node_indices()
             .into_iter()
             .partition(|v| self.winner(*v, &z) == 0);
 
-        let s_0 = w_0
-            .iter()
-            .filter(|v| *&self.inner[**v].owner == Owner::Even && strategy.contains_key(*v))
-            .map(|v| (&self.inner[*v], strategy[v]));
-        let s_1 = w_1
-            .iter()
-            .filter(|v| *&self.inner[**v].owner == Owner::Odd && strategy.contains_key(*v))
-            .map(|v| (&self.inner[*v], strategy[v]));
+        let (s_0, s_1) = strategy.into_iter().partition(|(k, _)| w_0.contains(&k));
 
-        let mut strategy = HashMap::new();
-        for (v, t) in s_0 {
-            strategy.insert(
-                v.id,
-                Strategy {
-                    winner: v.owner,
-                    next_node_id: t.map(|a| self.inner[a].id),
-                },
-            );
-        }
-        for (v, t) in s_1 {
-            strategy.insert(
-                v.id,
-                Strategy {
-                    winner: v.owner,
-                    next_node_id: t.map(|a| self.inner[a].id),
-                },
-            );
-        }
-
-        let w_0: HashSet<_> = w_0.into_iter().map(|v| &self.inner[v]).collect();
-        let w_1: HashSet<_> = w_1.into_iter().map(|v| &self.inner[v]).collect();
-
-        for w in &w_0 {
-            if !strategy.contains_key(&w.id) {
-                strategy.insert(
-                    w.id,
-                    Strategy {
-                        winner: Owner::Even,
-                        next_node_id: None,
-                    },
-                );
-            }
-        }
-
-        for w in &w_1 {
-            if !strategy.contains_key(&w.id) {
-                strategy.insert(
-                    w.id,
-                    Strategy {
-                        winner: Owner::Odd,
-                        next_node_id: None,
-                    },
-                );
-            }
-        }
-
-        Solution {
-            even_region: w_0,
-            odd_region: w_1,
-            strategy,
-        }
+        self.construct_solution(w_0, w_1, s_0, s_1)
     }
 }

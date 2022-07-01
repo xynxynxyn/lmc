@@ -124,6 +124,7 @@ impl Graph {
         s_0: HashMap<NodeIndex, NodeIndex>,
         s_1: HashMap<NodeIndex, NodeIndex>,
     ) -> Solution {
+        log::info!("constructing solution from regions and strategies");
         let mut strat = s_0;
         strat.extend(s_1.into_iter());
         let mut strategy = strat
@@ -184,9 +185,7 @@ impl Graph {
             "{{{}}}",
             vertices
                 .into_iter()
-                .map(|v| {
-                    self.debug_vertice(*v)
-                })
+                .map(|v| { self.debug_vertice(*v) })
                 .sorted()
                 .join(", ")
         )

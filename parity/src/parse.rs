@@ -91,5 +91,11 @@ pub fn parse_game(game: &str) -> Option<Graph> {
         }
     }
 
+    log::info!(
+        "parsed parity game with {} vertices: {}",
+        number_of_nodes,
+        g.debug_all()
+    );
+
     Some(g)
 }

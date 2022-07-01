@@ -88,5 +88,5 @@ if __name__ == "__main__":
             print(f"{file} {error}")
             tangle = "ERR"
 
-        print("file {}: fpi {}  zlk {} tgl {}".format(file, fpi, zielonka,
+        print("file {}: fpi {}  zlk {}  tgl {}".format(file, fpi, zielonka,
                                                       tangle))
