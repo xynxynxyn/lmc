@@ -4,9 +4,9 @@ import os
 import sys
 import subprocess
 
-OINK_PATH = "../oink/build/oink"
-TEST_DIR = "./inputs/tests"
-EXEC_PATH = "./target/release/lmc"
+OINK_PATH = os.getenv("OINK_PATH", default="../oink/build/oink")
+TEST_DIR = os.getenv("TEST_DIR", default="./inputs/tests")
+EXEC_PATH = os.getenv("EXEC_PATH", default="./target/release/lmc")
 
 
 def sh(cmd):
@@ -51,14 +51,19 @@ if __name__ == "__main__":
 
     if not os.path.exists(EXEC_PATH):
         print(f"ERR could not find executable {EXEC_PATH}")
+        print(
+            "either you are not in the project directory or the EXEC_PATH environment variable is not set"
+        )
         sys.exit(1)
 
     if not os.path.exists(OINK_PATH):
         print(f"ERR could not find oink executable {OINK_PATH}")
+        print("set the environment variable OINK_PATH")
         sys.exit(1)
 
     if not os.path.isdir(TEST_DIR):
         print(f"ERR could not find test directory {TEST_DIR}")
+        print("set the environment variable TEST_DIR")
         sys.exit(1)
 
     for file in sorted(glob.glob(f"{TEST_DIR}/*")):
