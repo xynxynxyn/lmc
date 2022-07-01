@@ -41,6 +41,10 @@ def test_zielonka(file):
     test_generic(file, "zielonka")
 
 
+def test_tangle(file):
+    test_generic(file, "tangle")
+
+
 if __name__ == "__main__":
     print(f"compiling executable")
     sh("cargo build --release")
@@ -58,18 +62,26 @@ if __name__ == "__main__":
         sys.exit(1)
 
     for file in sorted(glob.glob(f"{TEST_DIR}/*")):
-        fpi = " OK"
+        fpi = "OK "
         try:
             test_fpi(file)
         except AssertionError as error:
             print(f"{file} {error}")
             fpi = "ERR"
 
-        zielonka = " OK"
+        zielonka = "OK "
         try:
             test_zielonka(file)
         except AssertionError as error:
             print(f"{file} {error}")
             zielonka = "ERR"
 
-        print("file {}: fpi {}   zielonka {}".format(file, fpi, zielonka))
+        tangle = "OK "
+        try:
+            test_tangle(file)
+        except AssertionError as error:
+            print(f"{file} {error}")
+            tangle = "ERR"
+
+        print("file {}: fpi {}  zlk {} tgl {}".format(file, fpi, zielonka,
+                                                      tangle))

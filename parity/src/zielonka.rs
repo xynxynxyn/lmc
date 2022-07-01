@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use itertools::Itertools;
 use petgraph::stable_graph::NodeIndex;
 
-use crate::{Graph, Owner, Solution, Strategy};
+use crate::{Graph, Owner, Solution};
 
 impl Graph {
     fn attract(
@@ -48,71 +48,7 @@ impl Graph {
 
         let (w_0, w_1, s_0, s_1) = self.zielonka_r();
 
-        let mut strat = s_0;
-        strat.extend(s_1.into_iter());
-        let mut strategy = strat
-            .into_iter()
-            .map(|(k, v)| {
-                let id = self.inner[k].id;
-                let target_id = self.inner[v].id;
-                let winner = if w_0.contains(&k) {
-                    Owner::Even
-                } else {
-                    Owner::Odd
-                };
-                let s = Strategy {
-                    winner,
-                    next_node_id: Some(target_id),
-                };
-                (id, s)
-            })
-            .collect::<HashMap<_, _>>();
-
-        for v in self.inner.node_indices() {
-            let id = self.inner[v].id;
-            if !strategy.contains_key(&id) {
-                let winner = if w_0.contains(&v) {
-                    Owner::Even
-                } else {
-                    Owner::Odd
-                };
-                let s = Strategy {
-                    winner,
-                    next_node_id: None,
-                };
-                strategy.insert(id, s);
-            }
-        }
-
-        let w_0 = w_0
-            .into_iter()
-            .map(|w| &self.inner[w])
-            .collect::<HashSet<_>>();
-        let w_1 = w_1
-            .into_iter()
-            .map(|w| &self.inner[w])
-            .collect::<HashSet<_>>();
-
-        Solution {
-            even_region: w_0,
-            odd_region: w_1,
-            strategy,
-        }
-    }
-
-    fn remove_vertices(&self, purge: &HashSet<NodeIndex>) -> Self {
-        Graph {
-            inner: self.inner.filter_map(
-                |v, w| {
-                    if purge.contains(&v) {
-                        None
-                    } else {
-                        Some(w.clone())
-                    }
-                },
-                |_, _| Some(()),
-            ),
-        }
+        self.construct_solution(w_0, w_1, s_0, s_1)
     }
 
     fn zielonka_r(

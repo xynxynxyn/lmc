@@ -1,11 +1,12 @@
 mod fpi;
 mod parse;
+mod tangle;
 mod zielonka;
 use itertools::Itertools;
 pub use parse::parse_game;
 use petgraph::graph::NodeIndex;
 use petgraph::stable_graph::StableDiGraph;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Display;
 
 // The main data structure is a Graph
@@ -84,6 +85,124 @@ impl Graph {
             .node_indices()
             .into_iter()
             .filter(move |v| self.inner[*v].owner == player)
+    }
+
+    fn remove_vertices(&self, purge: &HashSet<NodeIndex>) -> Self {
+        Graph {
+            inner: self.inner.filter_map(
+                |v, w| {
+                    if purge.contains(&&v) {
+                        None
+                    } else {
+                        Some(w.clone())
+                    }
+                },
+                |_, _| Some(()),
+            ),
+        }
+    }
+
+    fn remove_vertices_b_tree(&self, purge: &BTreeSet<NodeIndex>) -> Self {
+        Graph {
+            inner: self.inner.filter_map(
+                |v, w| {
+                    if purge.contains(&&v) {
+                        None
+                    } else {
+                        Some(w.clone())
+                    }
+                },
+                |_, _| Some(()),
+            ),
+        }
+    }
+
+    fn construct_solution(
+        &self,
+        w_0: HashSet<NodeIndex>,
+        w_1: HashSet<NodeIndex>,
+        s_0: HashMap<NodeIndex, NodeIndex>,
+        s_1: HashMap<NodeIndex, NodeIndex>,
+    ) -> Solution {
+        let mut strat = s_0;
+        strat.extend(s_1.into_iter());
+        let mut strategy = strat
+            .into_iter()
+            .map(|(k, v)| {
+                let id = self.inner[k].id;
+                let target_id = self.inner[v].id;
+                let winner = if w_0.contains(&k) {
+                    Owner::Even
+                } else {
+                    Owner::Odd
+                };
+                let s = Strategy {
+                    winner,
+                    next_node_id: Some(target_id),
+                };
+                (id, s)
+            })
+            .collect::<HashMap<_, _>>();
+
+        for v in self.inner.node_indices() {
+            let id = self.inner[v].id;
+            if !strategy.contains_key(&id) {
+                let winner = if w_0.contains(&v) {
+                    Owner::Even
+                } else {
+                    Owner::Odd
+                };
+                let s = Strategy {
+                    winner,
+                    next_node_id: None,
+                };
+                strategy.insert(id, s);
+            }
+        }
+
+        let w_0 = w_0
+            .into_iter()
+            .map(|w| &self.inner[w])
+            .collect::<HashSet<_>>();
+        let w_1 = w_1
+            .into_iter()
+            .map(|w| &self.inner[w])
+            .collect::<HashSet<_>>();
+
+        Solution {
+            even_region: w_0,
+            odd_region: w_1,
+            strategy,
+        }
+    }
+
+    fn debug<'a, T>(&'a self, vertices: T) -> String
+    where
+        T: IntoIterator<Item = &'a NodeIndex>,
+    {
+        format!(
+            "{{{}}}",
+            vertices
+                .into_iter()
+                .map(|v| {
+                    self.debug_vertice(*v)
+                })
+                .sorted()
+                .join(", ")
+        )
+    }
+
+    fn debug_all(&self) -> String {
+        self.debug(&self.inner.node_indices().collect_vec())
+    }
+
+    fn debug_vertice(&self, vertice: NodeIndex) -> String {
+        let w = &self.inner[vertice];
+        if let Some(label) = &w.label {
+            label.clone()
+        } else {
+            format!("{}/{}", w.id, w.priority)
+        }
     }
 }
 

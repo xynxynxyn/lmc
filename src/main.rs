@@ -1,5 +1,6 @@
 mod transform;
 
+use crate::transform::petri_to_gnba;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use itertools::Itertools;
@@ -12,8 +13,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 use transform::ltl_to_gnba;
-
-use crate::transform::petri_to_gnba;
 
 // opt parsing
 #[derive(Parser)]
@@ -78,9 +77,11 @@ enum Commands {
 enum Algorithm {
     FPI,
     Zielonka,
+    Tangle,
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
     let cli = Cli::parse();
 
     match &cli.command {
@@ -172,6 +173,7 @@ fn main() -> Result<()> {
             let sol = match algorithm {
                 Algorithm::FPI => game.fpi(),
                 Algorithm::Zielonka => game.zielonka(),
+                Algorithm::Tangle => game.tangle(),
             };
 
             if *regions {
