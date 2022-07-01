@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use colored::Colorize;
 use itertools::Itertools;
 use petgraph::stable_graph::NodeIndex;
 
@@ -8,11 +9,11 @@ use crate::{Graph, Owner, Solution};
 impl Graph {
     fn attract(
         &self,
-        z: &HashSet<NodeIndex>,
+        attractor: &HashSet<NodeIndex>,
         player: Owner,
         strategy: &HashMap<NodeIndex, NodeIndex>,
     ) -> (HashSet<NodeIndex>, HashMap<NodeIndex, NodeIndex>) {
-        let mut z = z.clone();
+        let mut z = attractor.clone();
         let mut q: Vec<_> = z.iter().cloned().collect();
         let mut strategy = strategy.clone();
 
@@ -38,10 +39,18 @@ impl Graph {
             }
         }
 
+        log::debug!(
+            "{} {} {} in subgraph {}",
+            self.debug(attractor),
+            "attracts".green(),
+            self.debug(&z),
+            self.debug_all()
+        );
         (z, strategy)
     }
 
     pub fn zielonka(&self) -> Solution {
+        log::info!("solving with zielonka's");
         if self.inner.node_count() == 0 {
             return Solution::empty();
         }
@@ -59,6 +68,7 @@ impl Graph {
         HashMap<NodeIndex, NodeIndex>,
         HashMap<NodeIndex, NodeIndex>,
     ) {
+        log::debug!("applying zielonka's to graph {}", self.debug_all());
         if self.inner.node_count() == 0 {
             return (
                 HashSet::new(),
@@ -94,9 +104,22 @@ impl Graph {
         let (b, strat_b) = self.attract(w_beta, player_beta, strat_beta);
 
         if b == *w_beta {
+            log::debug!(
+                "{}({}) {} {}",
+                "α".blue(),
+                player_alpha,
+                "wins".blue(),
+                self.debug(&a),
+            );
             let w_alpha = match player_alpha {
-                Owner::Even => &mut w_even,
-                Owner::Odd => &mut w_odd,
+                Owner::Even => {
+                    log::debug!("extending {} by {}", "W_even".blue(), self.debug(&a));
+                    &mut w_even
+                }
+                Owner::Odd => {
+                    log::debug!("extending {} by {}", "W_odd".red(), self.debug(&a));
+                    &mut w_odd
+                }
             };
             w_alpha.extend(a);
             strat_alpha.extend(strat_a);
@@ -115,14 +138,31 @@ impl Graph {
 
             (w_even, w_odd, strat_even, strat_odd)
         } else {
+            log::debug!(
+                "{}({}) {} {}",
+                "β".red(),
+                player_beta,
+                "wins".red(),
+                self.debug(&b),
+            );
             let (mut w_even, mut w_odd, mut strat_even, mut strat_odd) =
                 self.remove_vertices(&b).zielonka_r();
+            log::debug!(
+                "{} {} and {} with {} and {}",
+                "overwrote".magenta(),
+                "W_even".blue(),
+                "W_odd".red(),
+                self.debug(&w_even),
+                self.debug(&w_odd)
+            );
             let strat_beta = match player_beta {
                 Owner::Even => {
+                    log::debug!("extending {} by {}", "W_even".blue(), self.debug(&b));
                     w_even.extend(b);
                     &mut strat_even
                 }
                 Owner::Odd => {
+                    log::debug!("extending {} by {}", "W_odd".red(), self.debug(&b));
                     w_odd.extend(b);
                     &mut strat_odd
                 }
