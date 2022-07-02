@@ -10,7 +10,7 @@ EXEC_PATH = os.getenv("EXEC_PATH", default="./target/release/lmc")
 
 
 def sh(cmd):
-    ps = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
+    ps = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     return {"text": ps.communicate()[0], "status": ps.returncode}
 
 
@@ -43,6 +43,10 @@ def test_zielonka(file):
 
 def test_tangle(file):
     test_generic(file, "tangle")
+
+
+def test_spm(file):
+    test_generic(file, "spm")
 
 
 if __name__ == "__main__":
@@ -88,5 +92,12 @@ if __name__ == "__main__":
             print(f"{file} {error}")
             tangle = "ERR"
 
-        print("file {}: fpi {}  zlk {}  tgl {}".format(file, fpi, zielonka,
-                                                      tangle))
+        spm = "OK "
+        try:
+            test_spm(file)
+        except AssertionError as error:
+            print(f"{file} {error}")
+            spm = "ERR"
+
+        print("file {}: fpi {}  zlk {}  tgl {}  spm {}".format(file, fpi, zielonka,
+                                                       tangle, spm))

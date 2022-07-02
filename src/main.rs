@@ -78,6 +78,7 @@ enum Algorithm {
     FPI,
     Zielonka,
     Tangle,
+    SPM,
 }
 
 fn main() -> Result<()> {
@@ -174,6 +175,7 @@ fn main() -> Result<()> {
                 Algorithm::FPI => game.fpi(),
                 Algorithm::Zielonka => game.zielonka(),
                 Algorithm::Tangle => game.tangle(),
+                Algorithm::SPM => game.spm(),
             };
 
             if *regions {

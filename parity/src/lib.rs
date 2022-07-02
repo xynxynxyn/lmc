@@ -1,6 +1,7 @@
 mod fpi;
 mod parse;
 mod tangle;
+mod spm;
 mod zielonka;
 use itertools::Itertools;
 pub use parse::parse_game;
