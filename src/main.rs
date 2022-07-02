@@ -3,6 +3,7 @@ mod transform;
 use crate::transform::petri_to_gnba;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use env_logger::Env;
 use itertools::Itertools;
 use ltl::Formula;
 use petri::PetriNet;
@@ -21,6 +22,9 @@ use transform::ltl_to_gnba;
 /// Provides analysis for PetriNets, LTL property verification and various LTL model checking
 /// toolings.
 struct Cli {
+    /// Show diagnostic debug information, effect is the same as setting RUST_LOG=debug
+    #[clap(short, long)]
+    verbose: bool,
     #[clap(subcommand)]
     command: Commands,
 }
@@ -30,8 +34,10 @@ enum Commands {
     Petri {
         /// Number of PNML files which contain PetriNets to be analysed
         file: OsString,
+        /// Explore the statespace of the petri net
         #[clap(short, long)]
         analyse: bool,
+        /// Verify the petri net against an LTL specification
         #[clap(short, long)]
         ltl: Option<OsString>,
     },
@@ -42,6 +48,7 @@ enum Commands {
         #[clap(short, long)]
         /// Convert the LTL formulas to PNF form
         pnf: bool,
+        /// Check whether the LTL formula is satisfiable
         #[clap(short, long)]
         satisfiable: bool,
         /// Check if the provided LTL formula is satisfiable
@@ -51,6 +58,7 @@ enum Commands {
         #[clap(short, long)]
         /// Generate a GNBA from the LTL formula in HOA format
         gnba: bool,
+        /// Create a dot file for viewing the generated GNBA
         #[clap(short, long)]
         dot: bool,
     },
@@ -63,11 +71,11 @@ enum Commands {
         /// Print the strategy derived for the input to stdout
         #[clap(short, long)]
         strategy: bool,
-        /// Which algorithm to use
+        /// Which algorithm to use to solve the parity game
         #[clap(short, long)]
         #[clap(value_enum)]
         algorithm: Option<Algorithm>,
-        /// Instead of printing the solution to stdout it is written to the given file instead
+        /// Write the strategy to the given file
         #[clap(short, long)]
         target: Option<OsString>,
     },
@@ -82,8 +90,13 @@ enum Algorithm {
 }
 
 fn main() -> Result<()> {
-    env_logger::init();
     let cli = Cli::parse();
+
+    if cli.verbose {
+        env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
+    } else {
+        env_logger::init();
+    }
 
     match &cli.command {
         Commands::Petri { file, analyse, ltl } => {
@@ -209,12 +222,11 @@ fn main() -> Result<()> {
                 }
             }
 
+            if let Some(path) = target {
+                fs::write(path, sol.to_string())?;
+            }
             if *strategy {
-                if let Some(path) = target {
-                    fs::write(path, sol.to_string())?;
-                } else {
-                    println!("{}", sol)
-                }
+                println!("{}", sol)
             }
         }
     }
