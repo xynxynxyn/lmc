@@ -10,7 +10,10 @@ EXEC_PATH = os.getenv("EXEC_PATH", default="./target/release/lmc")
 
 
 def sh(cmd):
-    ps = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    ps = subprocess.Popen(cmd,
+                          shell=True,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.DEVNULL)
     return {"text": ps.communicate()[0], "status": ps.returncode}
 
 
@@ -99,5 +102,5 @@ if __name__ == "__main__":
             print(f"{file} {error}")
             spm = "ERR"
 
-        print("file {}: fpi {}  zlk {}  tgl {}  spm {}".format(file, fpi, zielonka,
-                                                       tangle, spm))
+        print("file {}: fpi {}  zlk {}  tgl {}  spm {}".format(
+            file, fpi, zielonka, tangle, spm))
