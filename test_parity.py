@@ -3,10 +3,16 @@ import glob
 import os
 import sys
 import subprocess
+import random
 
 OINK_PATH = os.getenv("OINK_PATH", default="../oink/build/oink")
+RNG_PATH = os.getenv("RNG_PATH", default="../oink/build/rngame")
 TEST_DIR = os.getenv("TEST_DIR", default="./inputs/tests")
 EXEC_PATH = os.getenv("EXEC_PATH", default="./target/release/lmc")
+
+
+def generate_game(file, size):
+    sh(f"{RNG_PATH} {size} {size + random.randint(0, 1)} 1 5 > {file}")
 
 
 def sh(cmd):
@@ -52,6 +58,51 @@ def test_spm(file):
     test_generic(file, "spm")
 
 
+def test_file(file, tangle=True, fpi=True, spm=True, zielonka=True):
+    fpi_result = "OK "
+    try:
+        if fpi:
+            test_fpi(file)
+        else:
+            fpi_result = "---"
+    except AssertionError as error:
+        print(f"{file} {error}")
+        fpi_result = "ERR"
+
+    zielonka_result = "OK "
+    try:
+        if zielonka:
+            test_zielonka(file)
+        else:
+            zielonka_result = "---"
+    except AssertionError as error:
+        print(f"{file} {error}")
+        zielonka_result = "ERR"
+
+    tangle_result = "OK "
+    try:
+        if tangle:
+            test_tangle(file)
+        else:
+            tangle_result = "---"
+    except AssertionError as error:
+        print(f"{file} {error}")
+        tangle_result = "ERR"
+
+    spm_result = "OK "
+    try:
+        if spm:
+            test_spm(file)
+        else:
+            spm_result = "---"
+    except AssertionError as error:
+        print(f"{file} {error}")
+        spm_result = "ERR"
+
+    print("file {}: fpi {}  zlk {}  tgl {}  spm {}".format(
+        file, fpi_result, zielonka_result, tangle_result, spm_result))
+
+
 if __name__ == "__main__":
     print(f"compiling executable")
     sh("cargo build --release")
@@ -73,34 +124,21 @@ if __name__ == "__main__":
         print("set the environment variable TEST_DIR")
         sys.exit(1)
 
+    if not os.path.exists(RNG_PATH):
+        print(f"ERR could not find rngame executable {RNG_PATH}")
+        print(
+            "set the environment variable RNG_PATH or recompile oink with -DOINK_BUILD_EXTRA_TOOLS"
+        )
+        sys.exit(1)
+
     for file in sorted(glob.glob(f"{TEST_DIR}/*")):
-        fpi = "OK "
-        try:
-            test_fpi(file)
-        except AssertionError as error:
-            print(f"{file} {error}")
-            fpi = "ERR"
+        test_file(file)
 
-        zielonka = "OK "
-        try:
-            test_zielonka(file)
-        except AssertionError as error:
-            print(f"{file} {error}")
-            zielonka = "ERR"
+    number_rng_games = 100
+    rng_game_size = 150
+    print(f"testing {number_rng_games} random large parity games")
 
-        tangle = "OK "
-        try:
-            test_tangle(file)
-        except AssertionError as error:
-            print(f"{file} {error}")
-            tangle = "ERR"
-
-        spm = "OK "
-        try:
-            test_spm(file)
-        except AssertionError as error:
-            print(f"{file} {error}")
-            spm = "ERR"
-
-        print("file {}: fpi {}  zlk {}  tgl {}  spm {}".format(
-            file, fpi, zielonka, tangle, spm))
+    for i in range(0, number_rng_games):
+        generate_game(f"tmp_{i}", rng_game_size)
+        test_file(f"tmp_{i}", spm=False)
+        sh(f"rm tmp_{i}")

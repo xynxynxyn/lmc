@@ -2,7 +2,7 @@ use log::debug;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use itertools::{Either, Itertools};
-use petgraph::graph::NodeIndex;
+use petgraph::{algo, graph::NodeIndex};
 
 use crate::{Graph, Owner, Solution};
 
@@ -194,13 +194,41 @@ impl Graph {
         );
 
         if t.is_closed(self) {
+            let sccs = self.bottom_sccs(&t);
             debug!(
-                "new closed tangle added {} in {}",
+                "new closed area found {} in {}",
                 t.debug(self),
                 self.debug_all()
             );
+            let new_tangles: HashSet<_> = sccs
+                .iter()
+                .map(|scc| {
+                    let verts = BTreeSet::from_iter(scc.into_iter().cloned());
+                    Tangle {
+                        winner: Owner::from_usize(
+                            scc.iter().map(|v| self.inner[*v].priority).max().unwrap(),
+                        ),
+                        strategy: t
+                            .strategy
+                            .iter()
+                            .filter_map(|(k, v)| {
+                                if verts.contains(&k) {
+                                    Some((k.clone(), v.clone()))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
+                        vertices: verts,
+                    }
+                })
+                .collect();
             let mut recursive_result = self.remove_vertices_b_tree(&t.vertices).search(tangles);
-            recursive_result.insert(t);
+            debug!(
+                "tangle has subtangles [{}]",
+                new_tangles.iter().map(|t| t.debug(self)).join(", ")
+            );
+            recursive_result.extend(new_tangles);
             recursive_result
         } else {
             debug!(
@@ -210,6 +238,38 @@ impl Graph {
             );
             self.remove_vertices_b_tree(&t.vertices).search(tangles)
         }
+    }
+
+    fn bottom_sccs<'a>(&self, tangle: &Tangle) -> Vec<Vec<NodeIndex>> {
+        let induced_graph = self.inner.filter_map(
+            |v, w| {
+                if tangle.vertices.contains(&v) {
+                    Some(w.clone())
+                } else {
+                    None
+                }
+            },
+            |e, _| {
+                let (source, target) = self.inner.edge_endpoints(e).unwrap();
+                if tangle.strategy.contains_key(&source) {
+                    if *tangle.strategy.get(&source).unwrap() == target {
+                        Some(())
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(())
+                }
+            },
+        );
+
+        algo::tarjan_scc(&induced_graph)
+            .into_iter()
+            .filter(|scc| {
+                !scc.iter()
+                    .any(|v| induced_graph.neighbors(*v).any(|n| !scc.contains(&n)))
+            })
+            .collect_vec()
     }
 
     pub fn tangle(&self) -> Solution {
